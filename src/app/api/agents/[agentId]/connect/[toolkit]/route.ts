@@ -4,7 +4,7 @@ import { withErrorHandler, jsonResponse } from "@/lib/api";
 import { queryOne } from "@/db";
 import { AgentRow } from "@/lib/validation";
 import { NotFoundError } from "@/lib/errors";
-import { initiateOAuthConnection, generateComposioEntityId } from "@/lib/composio";
+import { initiateOAuthConnection } from "@/lib/composio";
 import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -20,9 +20,7 @@ export const GET = withErrorHandler(async (request: NextRequest, context) => {
   );
   if (!agent) throw new NotFoundError("Agent not found");
 
-  const entityId =
-    agent.composio_entity_id ||
-    generateComposioEntityId("tenant", agentId);
+  const entityId = auth.tenantId;
 
   const callbackUrl = new URL(
     `/api/agents/${agentId}/connect/callback`,

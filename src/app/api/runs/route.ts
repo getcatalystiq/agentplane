@@ -5,6 +5,7 @@ import { withErrorHandler, jsonResponse } from "@/lib/api";
 import { CreateRunSchema, PaginationSchema, RunRow } from "@/lib/validation";
 import { createRun, transitionRunStatus, listRuns } from "@/lib/runs";
 import { createSandbox } from "@/lib/sandbox";
+import { buildMcpConfig } from "@/lib/mcp";
 import { createNdjsonStream, ndjsonHeaders } from "@/lib/streaming";
 import { uploadTranscript } from "@/lib/transcripts";
 import { logger } from "@/lib/logger";
@@ -29,6 +30,9 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   let transcriptChunks: string[] = [];
 
   try {
+    // Build MCP config for Composio toolkits
+    const mcpServers = await buildMcpConfig(agent, auth.tenantId);
+
     // Create and start sandbox
     const sandbox = await createSandbox({
       agent,
@@ -37,6 +41,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       prompt: input.prompt,
       platformApiUrl: new URL(request.url).origin,
       aiGatewayApiKey: process.env.AI_GATEWAY_API_KEY!,
+      ...(mcpServers.composio ? { composioMcpUrl: mcpServers.composio.url } : {}),
     });
 
     // Transition to running

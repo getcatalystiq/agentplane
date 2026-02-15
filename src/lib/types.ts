@@ -64,7 +64,6 @@ export interface Agent {
   git_repo_url: string | null;
   git_branch: string;
   github_installation_id: string | null;
-  composio_entity_id: string | null;
   composio_toolkits: string[];
   model: string;
   allowed_tools: string[];

@@ -15,17 +15,6 @@ function getClient(): InstanceType<typeof ComposioClient> | null {
   return _client;
 }
 
-// Composio user ID convention: ap_{tenantSlug}_{agentId}
-export function generateComposioUserId(
-  tenantSlug: string,
-  agentId: string,
-): string {
-  return `ap_${tenantSlug}_${agentId}`;
-}
-
-// Keep old name as alias
-export const generateComposioEntityId = generateComposioUserId;
-
 export interface ComposioMcpConfig {
   url: string;
 }
