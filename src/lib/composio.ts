@@ -1,78 +1,86 @@
+import ComposioClient from "@composio/client";
 import { logger } from "./logger";
 
-interface ComposioSession {
-  mcp: {
-    url: string;
-    headers: Record<string, string>;
-  };
+let _client: InstanceType<typeof ComposioClient> | null = null;
+
+function getClient(): InstanceType<typeof ComposioClient> | null {
+  const apiKey = process.env.COMPOSIO_API_KEY;
+  if (!apiKey) {
+    logger.warn("COMPOSIO_API_KEY not set");
+    return null;
+  }
+  if (!_client) {
+    _client = new ComposioClient({ apiKey });
+  }
+  return _client;
 }
 
-// Composio entity ID convention: ap_{tenantSlug}_{agentId}
-export function generateComposioEntityId(
+// Composio user ID convention: ap_{tenantSlug}_{agentId}
+export function generateComposioUserId(
   tenantSlug: string,
   agentId: string,
 ): string {
   return `ap_${tenantSlug}_${agentId}`;
 }
 
-export async function createComposioSession(
-  entityId: string,
-): Promise<ComposioSession | null> {
-  const apiKey = process.env.COMPOSIO_API_KEY;
-  if (!apiKey) {
-    logger.warn("COMPOSIO_API_KEY not set, skipping Composio session creation");
-    return null;
-  }
+// Keep old name as alias
+export const generateComposioEntityId = generateComposioUserId;
+
+export interface ComposioMcpConfig {
+  url: string;
+}
+
+/**
+ * Create an MCP server in Composio for the given toolkits and generate
+ * a user-specific URL the sandbox can connect to.
+ */
+export async function createComposioMcpUrl(
+  userId: string,
+  toolkits: string[],
+): Promise<ComposioMcpConfig | null> {
+  const client = getClient();
+  if (!client) return null;
 
   try {
-    // Use Composio v3 API directly
-    const response = await fetch(
-      "https://backend.composio.dev/v3/sessions",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": apiKey,
-        },
-        body: JSON.stringify({
-          entity_id: entityId,
-        }),
-      },
-    );
-
-    if (!response.ok) {
-      const text = await response.text();
-      logger.error("Composio session creation failed", {
-        status: response.status,
-        body: text.slice(0, 500),
-      });
-      return null;
-    }
-
-    const data = await response.json();
-
-    logger.info("Composio session created", {
-      entity_id: entityId,
-      mcp_url: data.mcp?.url?.slice(0, 50) + "...",
+    // Create an MCP server with managed auth and the requested toolkits
+    const server = await client.mcp.create({
+      name: `ap-${userId.slice(0, 20)}`,
+      auth_config_ids: [],
+      managed_auth_via_composio: true,
+      no_auth_apps: toolkits.map((t) => t.toLowerCase()),
     });
 
-    return {
-      mcp: {
-        url: data.mcp.url,
-        headers: data.mcp.headers || {},
-      },
-    };
+    // Generate a user-specific URL
+    const urlResponse = await client.mcp.generate.url({
+      mcp_server_id: server.id,
+      user_ids: [userId],
+    });
+
+    const mcpUrl = urlResponse.user_ids_url?.[0] || urlResponse.mcp_url;
+
+    logger.info("Composio MCP URL generated", {
+      user_id: userId,
+      toolkits,
+      server_id: server.id,
+      url: mcpUrl?.slice(0, 60) + "...",
+    });
+
+    return { url: mcpUrl };
   } catch (err) {
-    logger.error("Composio session creation error", {
-      entity_id: entityId,
+    logger.error("Composio MCP URL generation failed", {
+      user_id: userId,
+      toolkits,
       error: err instanceof Error ? err.message : String(err),
     });
     return null;
   }
 }
 
+/**
+ * Initiate an OAuth connection for a toolkit via Composio REST API.
+ */
 export async function initiateOAuthConnection(
-  entityId: string,
+  userId: string,
   toolkit: string,
   callbackUrl: string,
 ): Promise<{ redirectUrl: string; connectionId: string } | null> {
@@ -81,7 +89,7 @@ export async function initiateOAuthConnection(
 
   try {
     const response = await fetch(
-      "https://backend.composio.dev/v3/connected-accounts",
+      "https://backend.composio.dev/api/v1/connectedAccounts",
       {
         method: "POST",
         headers: {
@@ -89,9 +97,9 @@ export async function initiateOAuthConnection(
           "x-api-key": apiKey,
         },
         body: JSON.stringify({
-          entity_id: entityId,
-          integration_id: toolkit,
-          redirect_url: callbackUrl,
+          entityId: userId,
+          appName: toolkit.toLowerCase(),
+          redirectUri: callbackUrl,
         }),
       },
     );
@@ -108,8 +116,8 @@ export async function initiateOAuthConnection(
 
     const data = await response.json();
     return {
-      redirectUrl: data.redirect_url,
-      connectionId: data.id,
+      redirectUrl: data.redirectUrl,
+      connectionId: data.connectedAccountId,
     };
   } catch (err) {
     logger.error("Composio OAuth initiation error", {
@@ -120,6 +128,9 @@ export async function initiateOAuthConnection(
   }
 }
 
+/**
+ * Check the status of a connected account.
+ */
 export async function getConnectionStatus(
   connectionId: string,
 ): Promise<{ status: string; toolkit: string } | null> {
@@ -128,7 +139,7 @@ export async function getConnectionStatus(
 
   try {
     const response = await fetch(
-      `https://backend.composio.dev/v3/connected-accounts/${connectionId}`,
+      `https://backend.composio.dev/api/v1/connectedAccounts/${connectionId}`,
       {
         headers: { "x-api-key": apiKey },
       },
@@ -139,7 +150,7 @@ export async function getConnectionStatus(
     const data = await response.json();
     return {
       status: data.status,
-      toolkit: data.integration_id,
+      toolkit: data.appUniqueId,
     };
   } catch {
     return null;
