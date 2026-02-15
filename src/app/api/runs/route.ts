@@ -36,7 +36,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       runId,
       prompt: input.prompt,
       platformApiUrl: new URL(request.url).origin,
-      anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+      aiGatewayApiKey: process.env.AI_GATEWAY_API_KEY!,
     });
 
     // Transition to running

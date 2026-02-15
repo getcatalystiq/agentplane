@@ -28,8 +28,8 @@ const EnvSchema = z.object({
   GITHUB_APP_PRIVATE_KEY: z.string().optional(),
   GITHUB_APP_WEBHOOK_SECRET: z.string().optional(),
 
-  // Optional
-  ANTHROPIC_API_KEY: z.string().optional(),
+  // Vercel AI Gateway
+  AI_GATEWAY_API_KEY: z.string().min(1, "AI_GATEWAY_API_KEY is required"),
 
   // Runtime
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),

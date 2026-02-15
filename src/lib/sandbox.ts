@@ -18,7 +18,7 @@ export interface SandboxConfig {
   prompt: string;
   platformApiUrl: string;
   runToken?: string;
-  anthropicApiKey?: string;
+  aiGatewayApiKey: string;
   composioMcpUrl?: string;
   composioMcpHeaders?: Record<string, string>;
 }
@@ -54,7 +54,7 @@ export async function createSandbox(config: SandboxConfig): Promise<SandboxInsta
     ...(sourceConfig ? { source: sourceConfig } : {}),
     networkPolicy: {
       allow: [
-        "api.anthropic.com",
+        "ai-gateway.vercel.sh",
         "backend.composio.dev",
         "*.githubusercontent.com",
         "registry.npmjs.org",
@@ -98,9 +98,9 @@ export async function createSandbox(config: SandboxConfig): Promise<SandboxInsta
     AGENTPLANE_PLATFORM_URL: config.platformApiUrl,
   };
 
-  if (config.anthropicApiKey) {
-    env.ANTHROPIC_API_KEY = config.anthropicApiKey;
-  }
+  env.ANTHROPIC_BASE_URL = "https://ai-gateway.vercel.sh";
+  env.ANTHROPIC_AUTH_TOKEN = config.aiGatewayApiKey;
+  env.ANTHROPIC_API_KEY = "";
   if (config.runToken) {
     env.AGENTPLANE_RUN_TOKEN = config.runToken;
   }
