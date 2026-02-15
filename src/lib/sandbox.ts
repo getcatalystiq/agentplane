@@ -65,9 +65,9 @@ export async function createSandbox(config: SandboxConfig): Promise<SandboxInsta
   // Build the runner script
   const runnerScript = buildRunnerScript(config);
 
-  // Write runner to sandbox
+  // Write runner to sandbox working directory so it can resolve npm packages
   await sandbox.writeFiles([
-    { path: "/tmp/runner.mjs", content: Buffer.from(runnerScript) },
+    { path: "/vercel/sandbox/runner.mjs", content: Buffer.from(runnerScript) },
   ]);
 
   // Install Claude Agent SDK
@@ -105,7 +105,7 @@ export async function createSandbox(config: SandboxConfig): Promise<SandboxInsta
   // Start the runner in detached mode
   const command = await sandbox.runCommand({
     cmd: "node",
-    args: ["/tmp/runner.mjs"],
+    args: ["runner.mjs"],
     env,
     detached: true,
   });
@@ -169,7 +169,7 @@ if (process.env.COMPOSIO_MCP_URL) {
   };
 }
 
-const transcriptPath = '/tmp/transcript.ndjson';
+const transcriptPath = '/vercel/sandbox/transcript.ndjson';
 writeFileSync(transcriptPath, '');
 
 function emit(event) {
