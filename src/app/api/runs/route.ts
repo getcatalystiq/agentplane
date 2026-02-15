@@ -95,6 +95,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
           error_type: "transcript_persist_error",
           error_messages: [err instanceof Error ? err.message : String(err)],
         });
+      } finally {
+        await sandbox.stop();
       }
     });
 
