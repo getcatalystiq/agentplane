@@ -1,220 +1,256 @@
-/**
- * Sandbox lifecycle management for isolated agent execution
- *
- * This module interfaces with the Cloudflare Container runtime
- * to spawn isolated containers for each agent session.
- */
+import { logger } from "./logger";
 
-import type { Env, TenantConfig, AgentRequest, AgentResult, PluginBundle } from './types';
-
-// =============================================================================
-// Sandbox Session Management
-// =============================================================================
-
-export interface SandboxSession {
-  id: string;
+export interface SandboxConfig {
+  agent: {
+    id: string;
+    name: string;
+    git_repo_url: string | null;
+    git_branch: string;
+    model: string;
+    permission_mode: string;
+    allowed_tools: string[];
+    max_turns: number;
+    max_budget_usd: number;
+  };
   tenantId: string;
-  createdAt: number;
-  status: 'running' | 'sleeping' | 'terminated';
+  runId: string;
+  prompt: string;
+  platformApiUrl: string;
+  runToken?: string;
+  anthropicApiKey?: string;
+  composioMcpUrl?: string;
+  composioMcpHeaders?: Record<string, string>;
 }
 
-export async function createSandboxSession(
-  tenantId: string,
-  config: TenantConfig,
-  env: Env
-): Promise<SandboxSession> {
-  const sessionId = generateSessionId();
-
-  const session: SandboxSession = {
-    id: sessionId,
-    tenantId,
-    createdAt: Date.now(),
-    status: 'running',
-  };
-
-  // Store session state with tenant-specific key prefix for easier cleanup
-  await env.TENANT_KV.put(
-    `session:${sessionId}`,
-    JSON.stringify(session),
-    { expirationTtl: parseDuration(config.resources.sandbox.sleep_after) || 3600 }
-  );
-
-  return session;
+export interface SandboxInstance {
+  id: string;
+  stop: () => Promise<void>;
+  logs: () => AsyncIterable<string>;
 }
 
-export async function getSandboxSession(
-  sessionId: string,
-  env: Env
-): Promise<SandboxSession | null> {
-  const data = await env.TENANT_KV.get(`session:${sessionId}`);
-  if (!data) return null;
-
+// Dynamic import to avoid build errors when @vercel/sandbox isn't installed locally
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function getSandboxSDK(): Promise<any> {
   try {
-    return JSON.parse(data) as SandboxSession;
+    // @ts-expect-error -- @vercel/sandbox is only available in Vercel runtime
+    return await import("@vercel/sandbox");
   } catch {
-    return null;
+    throw new Error(
+      "@vercel/sandbox is not available. This code must run on Vercel.",
+    );
   }
 }
 
-export async function terminateSandboxSession(
-  sessionId: string,
-  env: Env
-): Promise<void> {
-  const session = await getSandboxSession(sessionId, env);
-  if (!session) return;
+export async function createSandbox(config: SandboxConfig): Promise<SandboxInstance> {
+  const { Sandbox } = await getSandboxSDK();
 
-  session.status = 'terminated';
-  await env.TENANT_KV.put(`session:${sessionId}`, JSON.stringify(session), {
-    expirationTtl: 300, // Keep for 5 min after termination
+  const sourceConfig = config.agent.git_repo_url
+    ? {
+        type: "git" as const,
+        url: config.agent.git_repo_url,
+        depth: 1,
+        revision: config.agent.git_branch || "main",
+      }
+    : undefined;
+
+  logger.info("Creating sandbox", {
+    run_id: config.runId,
+    agent_id: config.agent.id,
+    tenant_id: config.tenantId,
+    has_git_source: !!config.agent.git_repo_url,
   });
-}
 
-// =============================================================================
-// Agent Execution
-// =============================================================================
+  const sandbox = await Sandbox.create({
+    runtime: "node22",
+    resources: { vcpus: 2 },
+    timeout: 10 * 60 * 1000, // 10 minutes
+    ...(sourceConfig ? { source: sourceConfig } : {}),
+    networkPolicy: {
+      allow: [
+        "api.anthropic.com",
+        "backend.composio.dev",
+        "*.githubusercontent.com",
+        new URL(config.platformApiUrl).hostname,
+      ],
+    },
+  });
 
-export async function executeAgent(
-  session: SandboxSession,
-  request: AgentRequest,
-  plugins: PluginBundle,
-  config: TenantConfig,
-  env: Env
-): Promise<AgentResult> {
-  // Build the agent execution environment
-  const agentEnv = buildAgentEnvironment(plugins, config);
+  // Build the runner script
+  const runnerScript = buildRunnerScript(config);
 
-  // Execute via Cloudflare Container/Sandbox
-  try {
-    const result = await runInSandbox(session, request, agentEnv, env);
-    return result;
-  } catch (error) {
-    return {
-      output: '',
-      exitCode: 1,
-      sessionId: session.id,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    };
-  }
-}
+  // Write runner to sandbox
+  await sandbox.files.write("/tmp/runner.mjs", runnerScript);
 
-interface AgentEnvironment {
-  skills: string;
-  commands: string;
-  mcpServers: string;
-  bedrockRegion?: string;
-  bedrockModel?: string;
-}
+  // Install Claude Agent SDK if not from snapshot
+  const installCmd = await sandbox.commands.run({
+    cmd: "npm install @anthropic-ai/claude-agent-sdk 2>&1 || true",
+    timeout: 60_000,
+  });
+  logger.debug("SDK install output", { output: installCmd.stdout?.slice(0, 500) });
 
-function buildAgentEnvironment(
-  plugins: PluginBundle,
-  config: TenantConfig
-): AgentEnvironment {
-  // Serialize plugin content for injection into the sandbox
-  const skillsContent = plugins.skills
-    .map((s) => `# ${s.name}\n${s.content}`)
-    .join('\n\n---\n\n');
-
-  const commandsContent = plugins.commands
-    .map((c) => `# ${c.name}\n${c.content}`)
-    .join('\n\n---\n\n');
-
-  const mcpServersJson = JSON.stringify(plugins.mcpServers);
-
-  const agentEnv: AgentEnvironment = {
-    skills: skillsContent,
-    commands: commandsContent,
-    mcpServers: mcpServersJson,
+  // Build env vars for the runner command
+  const env: Record<string, string> = {
+    AGENTPLANE_RUN_ID: config.runId,
+    AGENTPLANE_AGENT_ID: config.agent.id,
+    AGENTPLANE_TENANT_ID: config.tenantId,
+    AGENTPLANE_PLATFORM_URL: config.platformApiUrl,
   };
 
-  // Add AI provider configuration
-  if (config.ai?.provider === 'bedrock') {
-    agentEnv.bedrockRegion = config.ai.bedrock_region;
-    agentEnv.bedrockModel = config.ai.bedrock_model;
+  if (config.anthropicApiKey) {
+    env.ANTHROPIC_API_KEY = config.anthropicApiKey;
+  }
+  if (config.runToken) {
+    env.AGENTPLANE_RUN_TOKEN = config.runToken;
+  }
+  if (config.composioMcpUrl) {
+    env.COMPOSIO_MCP_URL = config.composioMcpUrl;
+  }
+  if (config.composioMcpHeaders) {
+    env.COMPOSIO_MCP_HEADERS = JSON.stringify(config.composioMcpHeaders);
   }
 
-  return agentEnv;
-}
+  // Start the runner in detached mode
+  const command = await sandbox.commands.run({
+    cmd: "node /tmp/runner.mjs",
+    env,
+    background: true,
+  });
 
-async function runInSandbox(
-  session: SandboxSession,
-  request: AgentRequest,
-  agentEnv: AgentEnvironment,
-  env: Env
-): Promise<AgentResult> {
-  // This is where the Cloudflare Sandbox SDK would be used
-  // For now, we simulate the expected behavior
-
-  // In production, this would:
-  // 1. Spawn a container with the Claude Agent SDK
-  // 2. Inject the skills, commands, and MCP servers
-  // 3. Execute the agent with the prompt
-  // 4. Stream or return the result
-
-  // Check if Sandbox SDK is available
-  const sandboxAvailable = 'Sandbox' in env;
-
-  if (!sandboxAvailable) {
-    // Return a simulated response for development
-    return {
-      output: `[Sandbox not available] Would execute: ${request.prompt}`,
-      exitCode: 0,
-      sessionId: session.id,
-    };
-  }
-
-  // When Sandbox SDK is available:
-  // const sandbox = env.Sandbox as SandboxBinding;
-  // const container = await sandbox.spawn({
-  //   image: 'registry.cloudflare.com/agentplane/agent:latest',
-  //   env: {
-  //     AGENT_SKILLS: agentEnv.skills,
-  //     AGENT_COMMANDS: agentEnv.commands,
-  //     MCP_SERVERS: agentEnv.mcpServers,
-  //     ...
-  //   }
-  // });
-  // const result = await container.exec(['claude', '--prompt', request.prompt]);
-  // return { output: result.stdout, exitCode: result.exitCode, sessionId: session.id };
-
-  // Suppress unused variable warnings for now
-  void agentEnv;
+  logger.info("Sandbox started", {
+    run_id: config.runId,
+    sandbox_id: sandbox.id,
+  });
 
   return {
-    output: `[Sandbox placeholder] Prompt: ${request.prompt}`,
-    exitCode: 0,
-    sessionId: session.id,
+    id: sandbox.id,
+    stop: async () => {
+      try {
+        await sandbox.stop();
+      } catch (err) {
+        logger.warn("Failed to stop sandbox", {
+          sandbox_id: sandbox.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    },
+    logs: () => streamLogs(command),
   };
 }
 
-// =============================================================================
-// Helpers
-// =============================================================================
-
-function generateSessionId(): string {
-  const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
+async function* streamLogs(command: { logs: () => AsyncIterable<string> }): AsyncIterable<string> {
+  for await (const line of command.logs()) {
+    yield line;
+  }
 }
 
-function parseDuration(duration: string): number | null {
-  const match = duration.match(/^(\d+)(s|m|h|d)$/);
-  if (!match) return null;
+function buildRunnerScript(config: SandboxConfig): string {
+  const agentConfig = {
+    model: config.agent.model,
+    permissionMode: config.agent.permission_mode,
+    allowedTools: config.agent.allowed_tools,
+    maxTurns: config.agent.max_turns,
+    maxBudgetUsd: config.agent.max_budget_usd,
+  };
 
-  const value = parseInt(match[1], 10);
-  const unit = match[2];
+  return `
+import { query } from '@anthropic-ai/claude-agent-sdk';
+import { writeFileSync, appendFileSync } from 'fs';
 
-  switch (unit) {
-    case 's':
-      return value;
-    case 'm':
-      return value * 60;
-    case 'h':
-      return value * 3600;
-    case 'd':
-      return value * 86400;
-    default:
-      return null;
+const config = ${JSON.stringify(agentConfig)};
+const prompt = ${JSON.stringify(config.prompt)};
+const runId = process.env.AGENTPLANE_RUN_ID;
+const platformUrl = process.env.AGENTPLANE_PLATFORM_URL;
+const runToken = process.env.AGENTPLANE_RUN_TOKEN;
+
+// Build MCP servers config
+const mcpServers = {};
+if (process.env.COMPOSIO_MCP_URL) {
+  const headers = process.env.COMPOSIO_MCP_HEADERS
+    ? JSON.parse(process.env.COMPOSIO_MCP_HEADERS)
+    : {};
+  mcpServers.composio = {
+    type: 'http',
+    url: process.env.COMPOSIO_MCP_URL,
+    headers,
+  };
+}
+
+const transcriptPath = '/tmp/transcript.ndjson';
+writeFileSync(transcriptPath, '');
+
+function emit(event) {
+  const line = JSON.stringify(event);
+  console.log(line);
+  appendFileSync(transcriptPath, line + '\\n');
+}
+
+async function main() {
+  emit({
+    type: 'run_started',
+    run_id: runId,
+    agent_id: process.env.AGENTPLANE_AGENT_ID,
+    model: config.model,
+    timestamp: new Date().toISOString(),
+  });
+
+  try {
+    const options = {
+      model: config.model,
+      permissionMode: config.permissionMode,
+      allowedTools: config.allowedTools,
+      maxTurns: config.maxTurns,
+      maxBudgetUsd: config.maxBudgetUsd,
+      ...(Object.keys(mcpServers).length > 0 ? { mcpServers } : {}),
+    };
+
+    for await (const message of query({ prompt, options })) {
+      emit(message);
+    }
+  } catch (err) {
+    emit({
+      type: 'error',
+      error: err.message || String(err),
+      code: 'execution_error',
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // Upload transcript for long-running/detached runs
+  if (platformUrl && runToken) {
+    try {
+      const { readFileSync } = await import('fs');
+      const transcript = readFileSync(transcriptPath);
+      await fetch(platformUrl + '/api/internal/runs/' + runId + '/transcript', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + runToken,
+          'Content-Type': 'application/x-ndjson',
+        },
+        body: transcript,
+      });
+    } catch (err) {
+      console.error('Failed to upload transcript:', err.message);
+    }
+  }
+}
+
+main().catch(err => {
+  console.error('Runner fatal error:', err);
+  process.exit(1);
+});
+`;
+}
+
+export async function reconnectSandbox(sandboxId: string): Promise<SandboxInstance | null> {
+  try {
+    const { Sandbox } = await getSandboxSDK();
+    const sandbox = await Sandbox.get(sandboxId);
+    return {
+      id: sandbox.id,
+      stop: () => sandbox.stop(),
+      logs: () => ({ [Symbol.asyncIterator]: () => ({ next: async () => ({ done: true as const, value: "" }) }) }),
+    };
+  } catch {
+    return null;
   }
 }

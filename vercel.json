@@ -1,0 +1,9 @@
+{
+  "crons": [
+    { "path": "/api/cron/cleanup-transcripts", "schedule": "0 3 * * *" },
+    { "path": "/api/cron/cleanup-sandboxes", "schedule": "*/15 * * * *" }
+  ],
+  "functions": {
+    "app/api/runs/**": { "supportsCancellation": true }
+  }
+}

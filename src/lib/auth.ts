@@ -1,117 +1,79 @@
-/**
- * Zero Trust JWT validation for Cloudflare Access
- */
+import { z } from "zod";
+import { hashApiKey, timingSafeEqual } from "./crypto";
+import { queryOne } from "@/db";
+import { logger } from "./logger";
+import type { TenantId } from "./types";
 
-import * as jose from 'jose';
-import type { Env, AuthResult, AccessJWTPayload } from './types';
-import { log } from './logging';
+const ApiKeyRow = z.object({
+  id: z.string(),
+  tenant_id: z.string(),
+  name: z.string(),
+  scopes: z.array(z.string()),
+});
 
-// Module-level JWKS cache
-let jwksCache: jose.JWTVerifyGetKey | null = null;
-let jwksCacheTeamDomain: string | null = null;
-
-function getJWKS(teamDomain: string): jose.JWTVerifyGetKey {
-  // Return cached JWKS if same team domain
-  if (jwksCache && jwksCacheTeamDomain === teamDomain) {
-    return jwksCache;
-  }
-
-  const jwksUrl = new URL(`https://${teamDomain}/cdn-cgi/access/certs`);
-  jwksCache = jose.createRemoteJWKSet(jwksUrl);
-  jwksCacheTeamDomain = teamDomain;
-  return jwksCache;
+export interface AuthContext {
+  tenantId: TenantId;
+  apiKeyId: string;
+  apiKeyName: string;
+  scopes: string[];
 }
 
-export async function validateRequestAndGetTenant(
-  request: Request,
-  env: Env
-): Promise<AuthResult> {
-  // Get JWT from header or cookie
-  const token =
-    request.headers.get('CF-Access-JWT-Assertion') ||
-    getCookie(request, 'CF_Authorization');
-
-  if (!token) {
-    return { success: false, reason: 'missing_token' };
+export async function authenticateApiKey(
+  authHeader: string | null,
+): Promise<AuthContext> {
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    throw new Error("Missing or invalid Authorization header");
   }
 
-  try {
-    const jwks = getJWKS(env.CF_TEAM_DOMAIN);
+  const token = authHeader.slice(7);
 
-    const { payload } = await jose.jwtVerify(token, jwks, {
-      audience: env.CF_POLICY_AUD,
-      issuer: `https://${env.CF_TEAM_DOMAIN}`,
-    });
-
-    const jwtPayload = payload as unknown as AccessJWTPayload;
-
-    // Note: jose.jwtVerify already validates expiration, no need for redundant check
-
-    // Extract tenant ID from service token
-    const tenantId = await resolveTenantId(jwtPayload, env);
-    if (!tenantId) {
-      return { success: false, reason: 'unknown_service_token' };
-    }
-
-    return { success: true, tenantId };
-  } catch (error) {
-    if (error instanceof jose.errors.JWTExpired) {
-      return { success: false, reason: 'expired' };
-    }
-    if (
-      error instanceof jose.errors.JWTClaimValidationFailed ||
-      error instanceof jose.errors.JWSSignatureVerificationFailed
-    ) {
-      return { success: false, reason: 'invalid_token' };
-    }
-    log.warn('JWT validation error', {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return { success: false, reason: 'validation_error' };
-  }
-}
-
-async function resolveTenantId(
-  payload: AccessJWTPayload,
-  env: Env
-): Promise<string | null> {
-  // Check for tenant_id in custom claims first (required for browser auth)
-  if (payload.custom?.tenant_id) {
-    return payload.custom.tenant_id;
+  if (!token.startsWith("ap_live_") && !token.startsWith("ap_test_")) {
+    throw new Error("Invalid API key format");
   }
 
-  // For service tokens, lookup tenant by client_id
-  if (payload.service_token_id || payload.common_name) {
-    const clientId = payload.sub;
-    const tenantId = await env.TENANT_TOKENS.get(clientId);
-    return tenantId;
+  const keyHash = await hashApiKey(token);
+
+  const row = await queryOne(
+    ApiKeyRow,
+    `SELECT id, tenant_id, name, scopes
+     FROM api_keys
+     WHERE key_hash = $1
+       AND revoked_at IS NULL
+       AND (expires_at IS NULL OR expires_at > NOW())`,
+    [keyHash],
+  );
+
+  if (!row) {
+    throw new Error("Invalid or revoked API key");
   }
 
-  // For user tokens without explicit tenant_id, reject
-  // This prevents insecure email-domain-based tenant derivation
-  log.warn('Missing tenant_id claim in user token', {
-    email: payload.email ? '[redacted]' : undefined,
-    sub: payload.sub,
+  // Update last_used_at (fire and forget)
+  import("@/db").then(({ execute }) =>
+    execute("UPDATE api_keys SET last_used_at = NOW() WHERE id = $1", [row.id]).catch(() => {}),
+  );
+
+  logger.debug("API key authenticated", {
+    tenant_id: row.tenant_id,
+    api_key_id: row.id,
   });
-  return null;
+
+  return {
+    tenantId: row.tenant_id as TenantId,
+    apiKeyId: row.id,
+    apiKeyName: row.name,
+    scopes: row.scopes,
+  };
 }
 
-function getCookie(request: Request, name: string): string | null {
-  const cookieHeader = request.headers.get('Cookie');
-  if (!cookieHeader) return null;
-
-  const cookies = cookieHeader.split(';');
-  for (const cookie of cookies) {
-    const trimmed = cookie.trim();
-    const eqIndex = trimmed.indexOf('=');
-    if (eqIndex === -1) continue;
-
-    const key = trimmed.substring(0, eqIndex);
-    const value = trimmed.substring(eqIndex + 1);
-
-    if (key === name) {
-      return value;
-    }
+export function authenticateAdmin(authHeader: string | null): boolean {
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return false;
   }
-  return null;
+
+  const token = authHeader.slice(7);
+  const adminKey = process.env.ADMIN_API_KEY;
+
+  if (!adminKey) return false;
+
+  return timingSafeEqual(token, adminKey);
 }

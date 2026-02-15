@@ -1,226 +1,157 @@
-/**
- * Core type definitions for AgentPlane
- */
+// Branded types to prevent parameter swaps at compile time
+export type TenantId = string & { readonly __brand: "TenantId" };
+export type AgentId = string & { readonly __brand: "AgentId" };
+export type RunId = string & { readonly __brand: "RunId" };
+export type ApiKeyId = string & { readonly __brand: "ApiKeyId" };
 
-// =============================================================================
-// Cloudflare Bindings
-// =============================================================================
+export type RunStatus =
+  | "pending"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "timed_out";
 
-export interface Env {
-  // KV Namespaces
-  TENANT_KV: KVNamespace;
-  TENANT_TOKENS: KVNamespace;
-  SECRETS_KV: KVNamespace;
+export type TenantStatus = "active" | "suspended";
 
-  // R2 Buckets
-  PLUGIN_CACHE: R2Bucket;
-  TENANT_STORAGE: R2Bucket;
+export type LlmProvider = "anthropic" | "bedrock";
 
-  // Sandbox SDK (when available)
-  // Sandbox: unknown;
+export type PermissionMode =
+  | "default"
+  | "acceptEdits"
+  | "bypassPermissions"
+  | "plan";
 
-  // Environment variables
-  CF_TEAM_DOMAIN: string;
-  CF_POLICY_AUD: string;
-  CF_ACCOUNT_ID: string;
-  AI_GATEWAY_ID: string;
-  ENCRYPTION_KEY: string;
-  ENVIRONMENT: 'development' | 'staging' | 'production';
+export const VALID_TRANSITIONS: Record<RunStatus, RunStatus[]> = {
+  pending: ["running", "failed"],
+  running: ["completed", "failed", "cancelled", "timed_out"],
+  completed: [],
+  failed: [],
+  cancelled: [],
+  timed_out: [],
+};
 
-  // OAuth provider credentials (dynamic keys)
-  [key: `${Uppercase<string>}_CLIENT_ID`]: string | undefined;
-  [key: `${Uppercase<string>}_CLIENT_SECRET`]: string | undefined;
-}
-
-// =============================================================================
-// Authentication
-// =============================================================================
-
-export type AuthResult =
-  | { success: true; tenantId: string }
-  | { success: false; reason: AuthFailureReason };
-
-export type AuthFailureReason =
-  | 'missing_token'
-  | 'invalid_token'
-  | 'expired'
-  | 'unknown_service_token'
-  | 'validation_error';
-
-export interface AccessJWTPayload {
-  email?: string;
-  sub: string; // Service token client_id
-  aud: string[];
-  iat: number;
-  exp: number;
-  iss: string;
-  common_name?: string;
-  service_token_id?: string;
-  custom?: {
-    tenant_id?: string;
-  };
-}
-
-// =============================================================================
-// Agent Requests/Responses
-// =============================================================================
-
-export interface AgentRequest {
-  prompt: string;
-  sessionId?: string;
-  skills?: string[];
-  mcpServers?: Record<string, MCPServerConfig>;
-}
-
-export interface AgentResult {
-  output: string;
-  exitCode: number;
-  sessionId?: string;
-  error?: string;
-}
-
-// =============================================================================
-// Request Validation
-// =============================================================================
-
-export function isValidAgentRequest(value: unknown): value is AgentRequest {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-
-  const obj = value as Record<string, unknown>;
-
-  if (typeof obj.prompt !== 'string') {
-    return false;
-  }
-
-  if (obj.sessionId !== undefined && typeof obj.sessionId !== 'string') {
-    return false;
-  }
-
-  if (obj.skills !== undefined) {
-    if (!Array.isArray(obj.skills) || !obj.skills.every((s) => typeof s === 'string')) {
-      return false;
-    }
-  }
-
-  if (obj.mcpServers !== undefined && typeof obj.mcpServers !== 'object') {
-    return false;
-  }
-
-  return true;
-}
-
-// =============================================================================
-// Tenant Configuration
-// =============================================================================
-
-export interface TenantConfig {
-  tenant: {
-    id: string;
-    name: string;
-    created_at: string;
-  };
-  zero_trust?: {
-    service_tokens: Array<{
-      client_id: string;
-      name: string;
-      permissions: string[];
-    }>;
-    require_mtls?: boolean;
-  };
-  resources: {
-    sandbox: {
-      sleep_after: string;
-      max_concurrent_sessions: number;
-    };
-    storage: {
-      bucket_prefix: string;
-      quota_gb: number;
-    };
-  };
-  plugins: PluginSource[];
-  allowed_mcp_domains?: string[];
-  allow_command_mcp_servers?: boolean;
-  ai?: {
-    provider: AIProvider;
-    bedrock_region?: string;
-    bedrock_model?: string;
-  };
-  rate_limits: {
-    requests_per_minute: number;
-    tokens_per_day: number;
-  };
-}
-
-// =============================================================================
-// Plugins
-// =============================================================================
-
-export interface PluginSource {
-  repo: string;
-  path?: string;
-  ref?: string;
-  github_token?: string;
-  env?: Record<string, string>;
-}
-
-export interface ExtractedPlugin {
+export interface Tenant {
+  id: TenantId;
   name: string;
-  skills: Array<{ name: string; content: string }>;
-  commands: Array<{ name: string; content: string }>;
-  mcpServers: Record<string, MCPServerConfig>;
+  slug: string;
+  settings: Record<string, unknown>;
+  monthly_budget_usd: number;
+  status: TenantStatus;
+  current_month_spend: number;
+  spend_period_start: string;
+  created_at: string;
 }
 
-export interface PluginBundle {
-  skills: Array<{ name: string; content: string }>;
-  commands: Array<{ name: string; content: string }>;
-  mcpServers: Record<string, MCPServerConfig>;
-}
-
-export interface PluginManifest {
+export interface ApiKey {
+  id: ApiKeyId;
+  tenant_id: TenantId;
   name: string;
-  version?: string;
-  description?: string;
-}
-
-// =============================================================================
-// MCP Server
-// =============================================================================
-
-export interface MCPServerConfig {
-  command?: string;
-  args?: string[];
-  url?: string;
-  env?: Record<string, string>;
-}
-
-// =============================================================================
-// Credentials
-// =============================================================================
-
-export interface OAuthCredential {
-  access_token: string;
-  refresh_token: string | null;
-  expires_at: number;
-  token_type: string;
+  key_prefix: string;
+  key_hash: string;
   scopes: string[];
+  last_used_at: string | null;
+  expires_at: string | null;
+  revoked_at: string | null;
+  created_at: string;
 }
 
-export interface OAuthProviderConfig {
-  tokenUrl: string;
-  authUrl?: string;
-  scopes?: string[];
+export interface Agent {
+  id: AgentId;
+  tenant_id: TenantId;
+  name: string;
+  description: string | null;
+  git_repo_url: string | null;
+  git_branch: string;
+  github_installation_id: string | null;
+  composio_entity_id: string | null;
+  composio_toolkits: string[];
+  model: string;
+  allowed_tools: string[];
+  permission_mode: PermissionMode;
+  max_turns: number;
+  max_budget_usd: number;
+  created_at: string;
+  updated_at: string;
 }
 
-// =============================================================================
-// AI Gateway
-// =============================================================================
-
-export type AIProvider = 'anthropic' | 'bedrock';
-
-export interface AIGatewayConfig {
-  accountId: string;
-  gatewayId: string;
-  provider: AIProvider;
+export interface Run {
+  id: RunId;
+  agent_id: AgentId;
+  tenant_id: TenantId;
+  status: RunStatus;
+  prompt: string;
+  result_summary: string | null;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  cache_read_tokens: number;
+  cache_creation_tokens: number;
+  cost_usd: number;
+  num_turns: number;
+  duration_ms: number;
+  duration_api_ms: number;
+  model_usage: Record<string, unknown> | null;
+  transcript_blob_url: string | null;
+  error_type: string | null;
+  error_messages: string[];
+  sandbox_id: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
 }
+
+export type StreamEvent =
+  | {
+      type: "run_started";
+      run_id: string;
+      agent_id: string;
+      model: string;
+      timestamp: string;
+    }
+  | {
+      type: "system";
+      session_id: string;
+      tools: string[];
+      mcp_servers: string[];
+    }
+  | {
+      type: "assistant";
+      message: { id: string; content: unknown[]; usage: unknown };
+      uuid: string;
+    }
+  | {
+      type: "tool_use";
+      tool_name: string;
+      tool_input: unknown;
+      uuid: string;
+      timestamp: string;
+    }
+  | {
+      type: "tool_result";
+      tool_name: string;
+      output: string;
+      uuid: string;
+      timestamp: string;
+    }
+  | { type: "heartbeat"; timestamp: string }
+  | {
+      type: "error";
+      error: string;
+      code?: string;
+      recoverable?: boolean;
+      timestamp: string;
+    }
+  | {
+      type: "result";
+      subtype:
+        | "success"
+        | "error_max_turns"
+        | "error_max_budget_usd"
+        | "error_during_execution";
+      cost_usd: number;
+      duration_ms: number;
+      num_turns: number;
+      usage: unknown;
+      model_usage: unknown;
+    }
+  | { type: "stream_detached"; poll_url: string; timestamp: string };

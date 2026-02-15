@@ -1,249 +1,160 @@
-/**
- * GitHub API helpers for fetching repository contents
- */
+import { logger } from "./logger";
 
-import { log } from './logging';
-
-export interface GitHubFile {
-  name: string;
-  path: string;
-  type: 'file' | 'dir';
-  content?: string;
-  sha: string;
+interface InstallationToken {
+  token: string;
+  expires_at: string;
 }
 
-export interface FetchRepoOptions {
-  repo: string;
-  path?: string;
-  ref?: string;
-  token?: string;
-}
+// Cache installation tokens (they last 1 hour)
+const tokenCache = new Map<string, { token: string; expiresAt: number }>();
 
-const GITHUB_API = 'https://api.github.com';
-
-interface GitHubTreeItem {
-  path: string;
-  mode: string;
-  type: 'blob' | 'tree';
-  sha: string;
-  size?: number;
-}
-
-interface GitHubTreeResponse {
-  sha: string;
-  url: string;
-  tree: GitHubTreeItem[];
-  truncated: boolean;
-}
-
-/**
- * Fetch all files in a directory recursively using the Git Trees API.
- * This uses a single API call to get the tree, then parallel fetches for content.
- */
-export async function fetchDirectoryRecursive(
-  options: FetchRepoOptions
-): Promise<GitHubFile[]> {
-  const { repo, ref = 'main', token, path = '' } = options;
-
-  const headers: Record<string, string> = {
-    Accept: 'application/vnd.github.v3+json',
-    'User-Agent': 'AgentPlane/1.0',
-  };
-
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
+export async function getInstallationToken(
+  installationId: string,
+): Promise<string | null> {
+  // Check cache
+  const cached = tokenCache.get(installationId);
+  if (cached && cached.expiresAt > Date.now() + 60_000) {
+    return cached.token;
   }
 
-  // Single API call to get entire tree
-  const treeUrl = `${GITHUB_API}/repos/${repo}/git/trees/${ref}?recursive=1`;
-  const response = await fetch(treeUrl, { headers });
+  const appId = process.env.GITHUB_APP_ID;
+  const privateKeyBase64 = process.env.GITHUB_APP_PRIVATE_KEY;
 
-  if (!response.ok) {
-    if (response.status === 404) {
-      throw new GitHubError(`Repository not found: ${repo}`, 404);
-    }
-    if (response.status === 403) {
-      throw new GitHubError('Rate limited or access denied', 403);
-    }
-    throw new GitHubError(`GitHub API error: ${response.status}`, response.status);
+  if (!appId || !privateKeyBase64) {
+    logger.warn("GitHub App credentials not configured");
+    return null;
   }
 
-  const tree = (await response.json()) as GitHubTreeResponse;
+  try {
+    // Generate JWT for GitHub App authentication
+    const jwt = await generateAppJwt(appId, privateKeyBase64);
 
-  if (tree.truncated) {
-    log.warn('GitHub tree response truncated', { repo, ref });
-  }
-
-  // Filter to requested path (blobs only)
-  const blobs = tree.tree.filter((item) => {
-    if (item.type !== 'blob') return false;
-    if (path === '') return true;
-    return item.path.startsWith(path + '/') || item.path === path;
-  });
-
-  // Parallel content fetches with concurrency limit
-  const CONCURRENCY = 10;
-  const files: GitHubFile[] = [];
-
-  for (let i = 0; i < blobs.length; i += CONCURRENCY) {
-    const batch = blobs.slice(i, i + CONCURRENCY);
-    const batchResults = await Promise.all(
-      batch.map(async (blob) => {
-        try {
-          const content = await fetchBlobContent(repo, blob.sha, token);
-          return {
-            name: blob.path.split('/').pop() || '',
-            path: blob.path,
-            type: 'file' as const,
-            sha: blob.sha,
-            content,
-          };
-        } catch (error) {
-          log.warn('Failed to fetch blob content', {
-            repo,
-            path: blob.path,
-            error: error instanceof Error ? error.message : String(error),
-          });
-          return null;
-        }
-      })
+    // Exchange for installation token
+    const response = await fetch(
+      `https://api.github.com/app/installations/${installationId}/access_tokens`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${jwt}`,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
+      },
     );
 
-    for (const result of batchResults) {
-      if (result !== null) {
-        files.push(result);
-      }
+    if (!response.ok) {
+      const text = await response.text();
+      logger.error("Failed to get installation token", {
+        installation_id: installationId,
+        status: response.status,
+        body: text.slice(0, 500),
+      });
+      return null;
     }
-  }
 
-  return files;
+    const data: InstallationToken = await response.json();
+
+    // Cache the token
+    tokenCache.set(installationId, {
+      token: data.token,
+      expiresAt: new Date(data.expires_at).getTime(),
+    });
+
+    return data.token;
+  } catch (err) {
+    logger.error("GitHub installation token error", {
+      installation_id: installationId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
 }
 
-async function fetchBlobContent(
-  repo: string,
-  sha: string,
-  token?: string
+async function generateAppJwt(
+  appId: string,
+  privateKeyBase64: string,
 ): Promise<string> {
-  const headers: Record<string, string> = {
-    Accept: 'application/vnd.github.v3.raw',
-    'User-Agent': 'AgentPlane/1.0',
+  const privateKeyPem = Buffer.from(privateKeyBase64, "base64").toString("utf-8");
+
+  const now = Math.floor(Date.now() / 1000);
+  const payload = {
+    iat: now - 60, // Issued 60s ago to handle clock drift
+    exp: now + 10 * 60, // Expires in 10 minutes
+    iss: appId,
   };
 
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
+  // Import the RSA private key
+  const keyData = pemToArrayBuffer(privateKeyPem);
+  const cryptoKey = await crypto.subtle.importKey(
+    "pkcs8",
+    keyData,
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
 
-  const url = `${GITHUB_API}/repos/${repo}/git/blobs/${sha}`;
-  const response = await fetch(url, { headers });
+  // Build JWT
+  const header = base64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
+  const payloadStr = base64url(JSON.stringify(payload));
+  const signingInput = `${header}.${payloadStr}`;
 
-  if (!response.ok) {
-    throw new GitHubError(`Failed to fetch blob: ${response.status}`, response.status);
-  }
+  const signature = await crypto.subtle.sign(
+    "RSASSA-PKCS1-v1_5",
+    cryptoKey,
+    new TextEncoder().encode(signingInput),
+  );
 
-  return response.text();
+  const sig = base64url(signature);
+  return `${signingInput}.${sig}`;
 }
 
-export async function fetchRepoContents(
-  options: FetchRepoOptions
-): Promise<GitHubFile[]> {
-  const { repo, path = '', ref = 'main', token } = options;
-
-  const url = `${GITHUB_API}/repos/${repo}/contents/${path}${ref ? `?ref=${ref}` : ''}`;
-
-  const headers: Record<string, string> = {
-    Accept: 'application/vnd.github.v3+json',
-    'User-Agent': 'AgentPlane/1.0',
-  };
-
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
+function pemToArrayBuffer(pem: string): ArrayBuffer {
+  const b64 = pem
+    .replace(/-----BEGIN PRIVATE KEY-----/g, "")
+    .replace(/-----END PRIVATE KEY-----/g, "")
+    .replace(/\s/g, "");
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
   }
+  return bytes.buffer as ArrayBuffer;
+}
 
-  const response = await fetch(url, { headers });
-
-  if (!response.ok) {
-    if (response.status === 404) {
-      throw new GitHubError(`Repository or path not found: ${repo}/${path}`, 404);
+function base64url(input: string | ArrayBuffer): string {
+  let b64: string;
+  if (typeof input === "string") {
+    b64 = btoa(input);
+  } else {
+    const bytes = new Uint8Array(input);
+    let binary = "";
+    for (const byte of bytes) {
+      binary += String.fromCharCode(byte);
     }
-    if (response.status === 403) {
-      throw new GitHubError('Rate limited or access denied', 403);
-    }
-    throw new GitHubError(`GitHub API error: ${response.status}`, response.status);
+    b64 = btoa(binary);
   }
-
-  const data = (await response.json()) as GitHubApiFile | GitHubApiFile[];
-
-  // Single file returns object, directory returns array
-  if (!Array.isArray(data)) {
-    return [parseGitHubFile(data)];
-  }
-
-  return data.map(parseGitHubFile);
+  return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-interface GitHubApiFile {
-  name: string;
-  path: string;
-  type: 'file' | 'dir';
-  sha: string;
-  content?: string;
-  encoding?: string;
-}
+// Verify GitHub webhook signature
+export async function verifyWebhookSignature(
+  payload: string,
+  signature: string,
+  secret: string,
+): Promise<boolean> {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
 
-export async function fetchFileContent(
-  options: FetchRepoOptions & { path: string }
-): Promise<string> {
-  const { repo, path, ref = 'main', token } = options;
+  const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(payload));
+  const computed = "sha256=" + Array.from(new Uint8Array(sig))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 
-  const url = `${GITHUB_API}/repos/${repo}/contents/${path}${ref ? `?ref=${ref}` : ''}`;
-
-  const headers: Record<string, string> = {
-    Accept: 'application/vnd.github.v3+json',
-    'User-Agent': 'AgentPlane/1.0',
-  };
-
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-
-  const response = await fetch(url, { headers });
-
-  if (!response.ok) {
-    if (response.status === 404) {
-      throw new GitHubError(`File not found: ${repo}/${path}`, 404);
-    }
-    throw new GitHubError(`GitHub API error: ${response.status}`, response.status);
-  }
-
-  const data = (await response.json()) as GitHubApiFile;
-
-  if (data.type !== 'file') {
-    throw new GitHubError(`Path is not a file: ${path}`, 400);
-  }
-
-  // Content is base64 encoded
-  if (data.encoding === 'base64' && data.content) {
-    return atob(data.content.replace(/\n/g, ''));
-  }
-
-  throw new GitHubError('Unexpected file encoding', 500);
-}
-
-function parseGitHubFile(data: GitHubApiFile): GitHubFile {
-  return {
-    name: data.name,
-    path: data.path,
-    type: data.type,
-    sha: data.sha,
-  };
-}
-
-export class GitHubError extends Error {
-  constructor(
-    message: string,
-    public status: number
-  ) {
-    super(message);
-    this.name = 'GitHubError';
-  }
+  return computed === signature;
 }

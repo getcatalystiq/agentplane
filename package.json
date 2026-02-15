@@ -2,37 +2,33 @@
   "name": "agentplane",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
-    "build": "wrangler deploy --dry-run --outdir dist",
-    "deploy": "npx tsx scripts/deploy.ts",
-    "deploy:staging": "npx tsx scripts/deploy.ts staging",
-    "deploy:production": "npx tsx scripts/deploy.ts production",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:integration": "vitest run --config vitest.integration.config.ts",
-    "test:coverage": "vitest run --coverage",
-    "typecheck": "tsc --noEmit",
-    "lint": "eslint src --ext .ts",
-    "setup": "npx tsx scripts/setup-cloudflare.ts",
-    "provision-tenant": "npx tsx scripts/provision-tenant.ts"
+    "migrate": "npx tsx src/db/migrate.ts",
+    "create-tenant": "npx tsx scripts/create-tenant.ts"
   },
   "dependencies": {
-    "jose": "^5.2.0",
-    "yaml": "^2.3.4"
+    "@neondatabase/serverless": "^1.0.2",
+    "@vercel/blob": "^2.2.0",
+    "next": "16.1.6",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "uuid": "^13.0.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20240117.0",
-    "@types/node": "^20.11.0",
-    "@typescript-eslint/eslint-plugin": "^6.19.0",
-    "@typescript-eslint/parser": "^6.19.0",
-    "eslint": "^8.56.0",
-    "miniflare": "^3.20240129.0",
-    "tsx": "^4.7.0",
-    "typescript": "^5.3.3",
-    "vitest": "^1.2.0",
-    "vitest-environment-miniflare": "^2.14.4",
-    "wrangler": "^3.24.0"
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/uuid": "^10.0.0",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.6",
+    "typescript": "^5",
+    "vitest": "^4.0.18"
   }
 }

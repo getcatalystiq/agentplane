@@ -1,0 +1,183 @@
+import { z } from "zod";
+import { query, queryOne, execute, withTenantTransaction } from "@/db";
+import { RunRow, AgentRow } from "./validation";
+import { generateId } from "./crypto";
+import { logger } from "./logger";
+import {
+  NotFoundError,
+  BudgetExceededError,
+  ConcurrencyLimitError,
+} from "./errors";
+import type { RunStatus, TenantId, AgentId, RunId } from "./types";
+import { VALID_TRANSITIONS } from "./types";
+
+const MAX_CONCURRENT_RUNS = 10;
+
+// Atomic run creation with concurrent run check (prevents TOCTOU)
+export async function createRun(
+  tenantId: TenantId,
+  agentId: AgentId,
+  prompt: string,
+): Promise<{ run: z.infer<typeof RunRow>; agent: z.infer<typeof AgentRow> }> {
+  return withTenantTransaction(tenantId, async (tx) => {
+    // Load agent
+    const agent = await tx.queryOne(
+      AgentRow,
+      "SELECT * FROM agents WHERE id = $1 AND tenant_id = $2",
+      [agentId, tenantId],
+    );
+    if (!agent) throw new NotFoundError("Agent not found");
+
+    // Check tenant budget
+    const budgetRow = await tx.queryOne(
+      z.object({
+        monthly_budget_usd: z.coerce.number(),
+        current_month_spend: z.coerce.number(),
+      }),
+      "SELECT monthly_budget_usd, current_month_spend FROM tenants WHERE id = $1",
+      [tenantId],
+    );
+    if (budgetRow && budgetRow.current_month_spend >= budgetRow.monthly_budget_usd) {
+      throw new BudgetExceededError(
+        `Monthly budget of $${budgetRow.monthly_budget_usd} exceeded (spent: $${budgetRow.current_month_spend.toFixed(2)})`,
+      );
+    }
+
+    // Atomic insert with concurrent run limit check
+    const runId = generateId();
+    const inserted = await tx.queryOne(
+      RunRow,
+      `INSERT INTO runs (id, agent_id, tenant_id, status, prompt, created_at)
+       SELECT $1, $2, $3, 'pending', $4, NOW()
+       WHERE (SELECT COUNT(*) FROM runs WHERE tenant_id = $3 AND status IN ('pending', 'running')) < $5
+       RETURNING *`,
+      [runId, agentId, tenantId, prompt, MAX_CONCURRENT_RUNS],
+    );
+
+    if (!inserted) {
+      throw new ConcurrencyLimitError(
+        `Maximum of ${MAX_CONCURRENT_RUNS} concurrent runs per tenant`,
+      );
+    }
+
+    logger.info("Run created", { run_id: runId, agent_id: agentId, tenant_id: tenantId });
+    return { run: inserted, agent };
+  });
+}
+
+// Status state machine transition
+export async function transitionRunStatus(
+  runId: RunId,
+  tenantId: TenantId,
+  fromStatus: RunStatus,
+  toStatus: RunStatus,
+  updates?: {
+    sandbox_id?: string;
+    started_at?: string;
+    completed_at?: string;
+    result_summary?: string;
+    cost_usd?: number;
+    total_input_tokens?: number;
+    total_output_tokens?: number;
+    cache_read_tokens?: number;
+    cache_creation_tokens?: number;
+    num_turns?: number;
+    duration_ms?: number;
+    duration_api_ms?: number;
+    model_usage?: Record<string, unknown>;
+    transcript_blob_url?: string;
+    error_type?: string;
+    error_messages?: string[];
+  },
+): Promise<boolean> {
+  // Validate transition
+  if (!VALID_TRANSITIONS[fromStatus]?.includes(toStatus)) {
+    logger.warn("Invalid status transition", {
+      run_id: runId,
+      from: fromStatus,
+      to: toStatus,
+    });
+    return false;
+  }
+
+  const setClauses = ["status = $3"];
+  const params: unknown[] = [runId, tenantId, toStatus];
+  let idx = 4;
+
+  if (updates) {
+    for (const [key, value] of Object.entries(updates)) {
+      if (value !== undefined) {
+        setClauses.push(`${key} = $${idx}`);
+        params.push(key === "model_usage" ? JSON.stringify(value) : value);
+        idx++;
+      }
+    }
+  }
+
+  params.push(fromStatus);
+  const result = await execute(
+    `UPDATE runs SET ${setClauses.join(", ")}
+     WHERE id = $1 AND tenant_id = $2 AND status = $${idx}`,
+    params,
+  );
+
+  if (result.rowCount === 0) {
+    logger.warn("Run status transition failed (stale state)", {
+      run_id: runId,
+      expected_from: fromStatus,
+      to: toStatus,
+    });
+    return false;
+  }
+
+  logger.info("Run status transitioned", { run_id: runId, from: fromStatus, to: toStatus });
+
+  // Update tenant spend on completion
+  if (toStatus === "completed" && updates?.cost_usd) {
+    await execute(
+      `UPDATE tenants SET current_month_spend = current_month_spend + $1
+       WHERE id = $2`,
+      [updates.cost_usd, tenantId],
+    );
+  }
+
+  return true;
+}
+
+export async function getRun(runId: string, tenantId: TenantId) {
+  const run = await queryOne(
+    RunRow,
+    "SELECT * FROM runs WHERE id = $1 AND tenant_id = $2",
+    [runId, tenantId],
+  );
+  if (!run) throw new NotFoundError("Run not found");
+  return run;
+}
+
+export async function listRuns(
+  tenantId: TenantId,
+  options: { agentId?: string; status?: RunStatus; limit: number; offset: number },
+) {
+  const conditions = ["tenant_id = $1"];
+  const params: unknown[] = [tenantId];
+  let idx = 2;
+
+  if (options.agentId) {
+    conditions.push(`agent_id = $${idx}`);
+    params.push(options.agentId);
+    idx++;
+  }
+  if (options.status) {
+    conditions.push(`status = $${idx}`);
+    params.push(options.status);
+    idx++;
+  }
+
+  params.push(options.limit, options.offset);
+  return query(
+    RunRow,
+    `SELECT * FROM runs WHERE ${conditions.join(" AND ")}
+     ORDER BY created_at DESC LIMIT $${idx} OFFSET $${idx + 1}`,
+    params,
+  );
+}
