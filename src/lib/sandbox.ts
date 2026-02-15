@@ -12,6 +12,7 @@ export interface SandboxConfig {
     allowed_tools: string[];
     max_turns: number;
     max_budget_usd: number;
+    skills: Array<{ folder: string; files: Array<{ path: string; content: string }> }>;
   };
   tenantId: string;
   runId: string;
@@ -66,9 +67,18 @@ export async function createSandbox(config: SandboxConfig): Promise<SandboxInsta
   // Build the runner script
   const runnerScript = buildRunnerScript(config);
 
-  // Write runner to sandbox working directory so it can resolve npm packages
+  // Write skill files into .claude/skills/<folder>/
+  const skillFiles = config.agent.skills.flatMap((skill) =>
+    skill.files.map((file) => ({
+      path: `/vercel/sandbox/.claude/skills/${skill.folder}/${file.path}`,
+      content: Buffer.from(file.content),
+    })),
+  );
+
+  // Write runner + skill files to sandbox
   await sandbox.writeFiles([
     { path: "/vercel/sandbox/runner.mjs", content: Buffer.from(runnerScript) },
+    ...skillFiles,
   ]);
 
   // Install Claude Agent SDK
@@ -147,12 +157,14 @@ async function* streamLogs(command: Command): AsyncIterable<string> {
 }
 
 function buildRunnerScript(config: SandboxConfig): string {
+  const hasSkills = config.agent.skills.length > 0;
   const agentConfig = {
     model: config.agent.model,
     permissionMode: config.agent.permission_mode,
     allowedTools: config.agent.allowed_tools,
     maxTurns: config.agent.max_turns,
     maxBudgetUsd: config.agent.max_budget_usd,
+    ...(hasSkills ? { settingSources: ["project"] } : {}),
   };
 
   return `
@@ -203,8 +215,10 @@ async function main() {
       allowedTools: config.allowedTools,
       maxTurns: config.maxTurns,
       maxBudgetUsd: config.maxBudgetUsd,
+      ...(config.settingSources ? { settingSources: config.settingSources } : {}),
       ...(Object.keys(mcpServers).length > 0 ? { mcpServers } : {}),
     };
+
 
     for await (const message of query({ prompt, options })) {
       emit(message);

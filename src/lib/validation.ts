@@ -14,6 +14,13 @@ export const CreateAgentSchema = z.object({
     .optional(),
   git_branch: z.string().min(1).max(255).default("main"),
   composio_toolkits: z.array(z.string().min(1).max(100)).default([]),
+  skills: z.array(z.object({
+    folder: z.string().min(1).max(255),
+    files: z.array(z.object({
+      path: z.string().min(1).max(500),
+      content: z.string().max(100_000),
+    })).min(1),
+  })).default([]),
   model: z.string().min(1).max(100).default("claude-sonnet-4-5-20250929"),
   allowed_tools: z
     .array(z.string().min(1).max(100))
@@ -93,6 +100,7 @@ export const AgentRow = z.object({
   git_repo_url: z.string().nullable(),
   git_branch: z.string(),
   composio_toolkits: z.array(z.string()),
+  skills: z.unknown().transform((v) => (Array.isArray(v) ? v : []) as Array<{ folder: string; files: Array<{ path: string; content: string }> }>),
   model: z.string(),
   allowed_tools: z.array(z.string()),
   permission_mode: z.enum(["default", "acceptEdits", "bypassPermissions", "plan"]),

@@ -22,6 +22,16 @@ export type PermissionMode =
   | "bypassPermissions"
   | "plan";
 
+export interface AgentSkillFile {
+  path: string;
+  content: string;
+}
+
+export interface AgentSkill {
+  folder: string;
+  files: AgentSkillFile[];
+}
+
 export const VALID_TRANSITIONS: Record<RunStatus, RunStatus[]> = {
   pending: ["running", "failed"],
   running: ["completed", "failed", "cancelled", "timed_out"],
@@ -64,6 +74,7 @@ export interface Agent {
   git_repo_url: string | null;
   git_branch: string;
   composio_toolkits: string[];
+  skills: AgentSkill[];
   model: string;
   allowed_tools: string[];
   permission_mode: PermissionMode;
