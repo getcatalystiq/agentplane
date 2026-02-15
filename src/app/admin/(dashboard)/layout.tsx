@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { LayoutDashboard, Users, Bot, Play, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, Bot, Play } from "lucide-react";
 import { LogoutButton } from "./logout-button";
 
 const navItems = [
