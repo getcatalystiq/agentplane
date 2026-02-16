@@ -80,7 +80,11 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ t
             <tbody>
               {agents.map((a) => (
                 <tr key={a.id} className="border-b border-border hover:bg-muted/30">
-                  <td className="p-3 font-medium">{a.name}</td>
+                  <td className="p-3 font-medium">
+                    <Link href={`/admin/agents/${a.id}`} className="text-primary hover:underline">
+                      {a.name}
+                    </Link>
+                  </td>
                   <td className="p-3 font-mono text-xs text-muted-foreground">{a.model}</td>
                   <td className="p-3"><Badge variant="outline">{a.permission_mode}</Badge></td>
                   <td className="p-3 text-muted-foreground text-xs">{new Date(a.created_at).toLocaleDateString()}</td>

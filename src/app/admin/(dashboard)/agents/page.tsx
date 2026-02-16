@@ -55,7 +55,11 @@ export default async function AgentsPage() {
           <tbody>
             {agents.map((a) => (
               <tr key={a.id} className="border-b border-border hover:bg-muted/30 transition-colors">
-                <td className="p-3 font-medium">{a.name}</td>
+                <td className="p-3 font-medium">
+                  <Link href={`/admin/agents/${a.id}`} className="text-primary hover:underline">
+                    {a.name}
+                  </Link>
+                </td>
                 <td className="p-3">
                   <Link href={`/admin/tenants/${a.tenant_id}`} className="text-primary hover:underline text-xs">
                     {a.tenant_name}
