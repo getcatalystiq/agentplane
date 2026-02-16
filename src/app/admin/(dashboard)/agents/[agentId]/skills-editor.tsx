@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import CodeMirror from "@uiw/react-codemirror";
 import { markdown } from "@codemirror/lang-markdown";
@@ -49,10 +49,17 @@ export function SkillsEditor({ agentId, initialSkills }: { agentId: string; init
   const [newFileName, setNewFileName] = useState("");
   const [showAddFolder, setShowAddFolder] = useState(false);
   const [showAddFile, setShowAddFile] = useState(false);
+  const savedSnapshot = useRef(JSON.stringify(initialSkills));
+
+  // Sync when server data updates (after router.refresh)
+  useEffect(() => {
+    savedSnapshot.current = JSON.stringify(initialSkills);
+    setSkills(initialSkills);
+  }, [initialSkills]);
 
   const isDirty = useMemo(
-    () => JSON.stringify(skills) !== JSON.stringify(initialSkills),
-    [skills, initialSkills],
+    () => JSON.stringify(skills) !== savedSnapshot.current,
+    [skills],
   );
 
   const activeFile = selectedFolder >= 0 && selectedFile >= 0
