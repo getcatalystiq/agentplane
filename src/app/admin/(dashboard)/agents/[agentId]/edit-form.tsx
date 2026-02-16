@@ -89,7 +89,7 @@ export function AgentEditForm({ agent }: { agent: Agent }) {
             <Input type="number" step="0.01" min="0.01" max="100" value={maxBudget} onChange={(e) => setMaxBudget(e.target.value)} />
           </div>
         </div>
-        <div className="mt-4">
+        <div className="mt-4 flex justify-end">
           <Button onClick={handleSave} disabled={saving} size="sm">
             {saving ? "Saving..." : "Save Changes"}
           </Button>
