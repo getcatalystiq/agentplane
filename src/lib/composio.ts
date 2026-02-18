@@ -158,11 +158,18 @@ export async function getOrCreateComposioMcpServer(
 
       let server: { id: string; name: string };
       if (existingByName) {
+        // Update the existing server with the current auth configs so that
+        // newly-saved API keys / OAuth connections take effect.
+        await client.mcp.update(existingByName.id, {
+          auth_config_ids: authConfigIds,
+        });
         server = existingByName;
-        logger.info("Composio MCP server recovered by name", {
+        logger.info("Composio MCP server updated and recovered by name", {
           user_id: userId,
           server_id: server.id,
           name: server.name,
+          auth_config_ids: authConfigIds,
+          no_auth_apps: noAuthApps,
         });
       } else {
         server = await client.mcp.create({
