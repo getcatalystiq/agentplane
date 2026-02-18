@@ -310,20 +310,64 @@ export async function callTokenRefreshEndpoint(params: {
 
 /**
  * Call tools/list on an MCP server via JSON-RPC over Streamable HTTP.
+ * Sends initialize first to establish a session, then tools/list.
  */
 export async function fetchMcpToolList(
   mcpUrl: string,
   accessToken: string,
 ): Promise<Array<{ name: string; description?: string; inputSchema?: unknown }>> {
-  const response = await safeFetch(mcpUrl, {
+  const authHeaders = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${accessToken}`,
+  };
+
+  // Step 1: Initialize the MCP session
+  const initResponse = await safeFetch(mcpUrl, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
-    },
+    headers: authHeaders,
     body: JSON.stringify({
       jsonrpc: "2.0",
       id: 1,
+      method: "initialize",
+      params: {
+        protocolVersion: "2025-03-26",
+        capabilities: {},
+        clientInfo: { name: "AgentPlane", version: "1.0.0" },
+      },
+    }),
+  });
+
+  if (!initResponse.ok) {
+    throw new Error(`initialize failed: ${initResponse.status} ${initResponse.statusText}`);
+  }
+
+  // Capture session ID from response header
+  const sessionId = initResponse.headers.get("mcp-session-id");
+  await initResponse.json(); // consume body
+
+  // Step 2: Send initialized notification
+  const notifHeaders: Record<string, string> = { ...authHeaders };
+  if (sessionId) notifHeaders["mcp-session-id"] = sessionId;
+
+  await safeFetch(mcpUrl, {
+    method: "POST",
+    headers: notifHeaders,
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      method: "notifications/initialized",
+    }),
+  });
+
+  // Step 3: Call tools/list
+  const toolsHeaders: Record<string, string> = { ...authHeaders };
+  if (sessionId) toolsHeaders["mcp-session-id"] = sessionId;
+
+  const response = await safeFetch(mcpUrl, {
+    method: "POST",
+    headers: toolsHeaders,
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 2,
       method: "tools/list",
       params: {},
     }),
