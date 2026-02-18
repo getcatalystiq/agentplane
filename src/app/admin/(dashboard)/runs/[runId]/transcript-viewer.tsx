@@ -136,9 +136,6 @@ export function TranscriptViewer({ transcript }: { transcript: TranscriptEvent[]
 }
 
 function ConversationView({ items }: { items: ConversationItem[] }) {
-  // Find the index of the last result item
-  const lastResultIdx = items.reduce((last, item, i) => item.role === "result" ? i : last, -1);
-
   return (
     <div className="space-y-3">
       {items.map((item, i) => {
@@ -150,7 +147,7 @@ function ConversationView({ items }: { items: ConversationItem[] }) {
           case "tool":
             return <ToolItem key={i} item={item} />;
           case "result":
-            return <ResultItem key={i} item={item} defaultExpanded={i === lastResultIdx} />;
+            return <ResultItem key={i} item={item} />;
           case "error":
             return <ErrorItem key={i} item={item} />;
           default:
@@ -259,9 +256,7 @@ function ToolItem({ item }: { item: ConversationItem }) {
   );
 }
 
-function ResultItem({ item, defaultExpanded = false }: { item: ConversationItem; defaultExpanded?: boolean }) {
-  const [showFull, setShowFull] = useState(defaultExpanded);
-  const [formatted, setFormatted] = useState(true);
+function ResultItem({ item }: { item: ConversationItem }) {
   return (
     <div className="rounded-md border border-green-500/30 bg-green-500/5 px-4 py-3">
       <div className="flex items-center gap-3 text-sm">
@@ -273,39 +268,8 @@ function ResultItem({ item, defaultExpanded = false }: { item: ConversationItem;
         <span>{((item.durationMs || 0) / 1000).toFixed(1)}s</span>
       </div>
       {item.text && (
-        <div className="mt-2">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setShowFull(!showFull)} className="text-xs text-primary hover:underline">
-              {showFull ? "Hide result" : "Show result"}
-            </button>
-            {showFull && (
-              <div className="flex items-center gap-0.5 rounded border border-border p-0.5">
-                <button
-                  onClick={() => setFormatted(true)}
-                  className={`px-2 py-0.5 text-[10px] rounded transition-colors ${formatted ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-                >
-                  Formatted
-                </button>
-                <button
-                  onClick={() => setFormatted(false)}
-                  className={`px-2 py-0.5 text-[10px] rounded transition-colors ${!formatted ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-                >
-                  Raw
-                </button>
-              </div>
-            )}
-          </div>
-          {showFull && (
-            <div className="mt-2">
-              {formatted ? (
-                <div className="text-sm prose prose-sm dark:prose-invert max-w-none">
-                  <ReactMarkdown>{item.text}</ReactMarkdown>
-                </div>
-              ) : (
-                <pre className="text-xs font-mono whitespace-pre-wrap max-h-96 overflow-y-auto">{item.text}</pre>
-              )}
-            </div>
-          )}
+        <div className="mt-2 text-sm prose prose-sm dark:prose-invert max-w-none">
+          <ReactMarkdown>{item.text}</ReactMarkdown>
         </div>
       )}
     </div>
