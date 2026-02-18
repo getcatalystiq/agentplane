@@ -153,9 +153,16 @@ export async function createSandbox(config: SandboxConfig): Promise<SandboxInsta
 }
 
 async function* streamLogs(command: Command): AsyncIterable<string> {
+  let buffer = "";
   for await (const log of command.logs()) {
-    yield log.data;
+    buffer += log.data;
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      if (line.trim()) yield line;
+    }
   }
+  if (buffer.trim()) yield buffer;
 }
 
 function buildRunnerScript(config: SandboxConfig): string {
