@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withErrorHandler } from "@/lib/api";
 import { CreateMcpServerSchema } from "@/lib/validation";
-import { listMcpServers, registerMcpServer } from "@/lib/mcp-connections";
+import { listMcpServers, registerMcpServer, getCallbackBaseUrl } from "@/lib/mcp-connections";
 import { validatePublicUrl } from "@/lib/mcp-oauth";
 
 export const dynamic = "force-dynamic";
@@ -18,11 +18,6 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   // SSRF validation on base_url
   await validatePublicUrl(input.base_url);
 
-  // Determine callback base URL
-  const callbackBaseUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
-    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-    : (process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000");
-
   const server = await registerMcpServer(
     {
       name: input.name,
@@ -32,7 +27,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       baseUrl: input.base_url,
       mcpEndpointPath: input.mcp_endpoint_path,
     },
-    callbackBaseUrl,
+    getCallbackBaseUrl(),
   );
 
   return NextResponse.json(server, { status: 201 });

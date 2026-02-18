@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { authenticateApiKey } from "@/lib/auth";
 import { withErrorHandler, jsonResponse } from "@/lib/api";
 import { getAgentForTenant } from "@/lib/agents";
-import { initiateOAuth } from "@/lib/mcp-connections";
+import { initiateOAuth, getCallbackBaseUrl } from "@/lib/mcp-connections";
 import type { AgentId, McpServerId } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -13,15 +13,11 @@ export const POST = withErrorHandler(async (request: NextRequest, context) => {
 
   await getAgentForTenant(agentId, auth.tenantId);
 
-  const callbackBaseUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
-    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-    : (process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000");
-
   const result = await initiateOAuth({
     mcpServerId: mcpServerId as McpServerId,
     agentId: agentId as AgentId,
     tenantId: auth.tenantId,
-    callbackBaseUrl,
+    callbackBaseUrl: getCallbackBaseUrl(),
   });
 
   return jsonResponse(result);
