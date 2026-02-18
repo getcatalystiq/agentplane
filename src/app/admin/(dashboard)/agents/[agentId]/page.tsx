@@ -1,5 +1,7 @@
+import React from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { z } from "zod";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { queryOne, query } from "@/db";
@@ -11,19 +13,42 @@ import { AgentHeaderActions } from "./header-actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function AgentDetailPage({ params }: { params: Promise<{ agentId: string }> }) {
+const PAGE_SIZE_OPTIONS = [10, 20, 50];
+
+export default async function AgentDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ agentId: string }>;
+  searchParams: Promise<{ page?: string; pageSize?: string }>;
+}) {
   const { agentId } = await params;
+  const { page: pageParam, pageSize: pageSizeParam } = await searchParams;
 
   const agent = await queryOne(AgentRow, "SELECT * FROM agents WHERE id = $1", [agentId]);
   if (!agent) notFound();
 
   const tenant = await queryOne(TenantRow, "SELECT * FROM tenants WHERE id = $1", [agent.tenant_id]);
 
-  const recentRuns = await query(
-    RunRow,
-    "SELECT * FROM runs WHERE agent_id = $1 ORDER BY created_at DESC LIMIT 20",
-    [agentId],
-  );
+  const pageSize = PAGE_SIZE_OPTIONS.includes(Number(pageSizeParam)) ? Number(pageSizeParam) : 20;
+  const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
+  const offset = (page - 1) * pageSize;
+
+  const [runs, countResult] = await Promise.all([
+    query(RunRow, "SELECT * FROM runs WHERE agent_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3", [agentId, pageSize, offset]),
+    queryOne(
+      z.object({ total: z.number() }),
+      "SELECT COUNT(*)::int AS total FROM runs WHERE agent_id = $1",
+      [agentId],
+    ),
+  ]);
+
+  const totalRuns = countResult?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalRuns / pageSize));
+
+  function pageHref(p: number, ps = pageSize) {
+    return `/admin/agents/${agentId}?page=${p}&pageSize=${ps}`;
+  }
 
   return (
     <div className="space-y-6">
@@ -50,7 +75,7 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ ag
             <CardTitle className="text-sm font-medium text-muted-foreground">Runs</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{recentRuns.length}</p>
+            <p className="text-2xl font-bold">{totalRuns}</p>
           </CardContent>
         </Card>
         <Card>
@@ -85,9 +110,9 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ ag
 
       <SkillsEditor agentId={agent.id} initialSkills={agent.skills} />
 
-      {/* Recent runs */}
+      {/* Runs */}
       <div>
-        <h2 className="text-lg font-semibold mb-3">Recent Runs</h2>
+        <h2 className="text-lg font-semibold mb-3">Runs</h2>
         <div className="rounded-lg border border-border">
           <table className="w-full text-sm">
             <thead>
@@ -100,7 +125,7 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ ag
               </tr>
             </thead>
             <tbody>
-              {recentRuns.map((r) => (
+              {runs.map((r) => (
                 <tr key={r.id} className="border-b border-border hover:bg-muted/30">
                   <td className="p-3 font-mono text-xs">
                     <Link href={`/admin/runs/${r.id}?from=agent`} className="text-primary hover:underline">
@@ -113,15 +138,48 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ ag
                   <td className="p-3 text-muted-foreground text-xs">{new Date(r.created_at).toLocaleString()}</td>
                 </tr>
               ))}
-              {recentRuns.length === 0 && (
+              {runs.length === 0 && (
                 <tr><td colSpan={5} className="p-6 text-center text-muted-foreground">No runs</td></tr>
               )}
             </tbody>
           </table>
+
+          {/* Pagination */}
+          <div className="flex items-center justify-between px-3 py-2 border-t border-border bg-muted/20 text-sm">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <span>Rows per page:</span>
+              {PAGE_SIZE_OPTIONS.map((ps) => (
+                <Link
+                  key={ps}
+                  href={pageHref(1, ps)}
+                  className={`px-2 py-0.5 rounded text-xs ${pageSize === ps ? "bg-primary text-primary-foreground font-medium" : "hover:bg-muted"}`}
+                >
+                  {ps}
+                </Link>
+              ))}
+              <span className="ml-2">{totalRuns} total</span>
+            </div>
+
+            <div className="flex items-center gap-1">
+              <PaginationBtn href={page > 1 ? pageHref(1) : null}>«</PaginationBtn>
+              <PaginationBtn href={page > 1 ? pageHref(page - 1) : null}>‹</PaginationBtn>
+              <span className="px-3 text-xs text-muted-foreground">
+                Page {page} of {totalPages}
+              </span>
+              <PaginationBtn href={page < totalPages ? pageHref(page + 1) : null}>›</PaginationBtn>
+              <PaginationBtn href={page < totalPages ? pageHref(totalPages) : null}>»</PaginationBtn>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   );
+}
+
+function PaginationBtn({ href, children }: { href: string | null; children: React.ReactNode }) {
+  const cls = "inline-flex items-center justify-center h-7 w-7 rounded border border-border text-xs font-medium transition-colors";
+  if (!href) return <span className={`${cls} text-muted-foreground opacity-40 cursor-not-allowed`}>{children}</span>;
+  return <Link href={href} className={`${cls} hover:bg-muted`}>{children}</Link>;
 }
 
 function RunStatusBadge({ status }: { status: string }) {
