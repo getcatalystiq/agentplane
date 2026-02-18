@@ -32,29 +32,30 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   const params: unknown[] = [];
   let idx = 1;
 
-  if (input.name !== undefined) {
-    sets.push(`name = $${idx++}`);
-    params.push(input.name);
-  }
-  if (input.model !== undefined) {
-    sets.push(`model = $${idx++}`);
-    params.push(input.model);
-  }
-  if (input.permission_mode !== undefined) {
-    sets.push(`permission_mode = $${idx++}`);
-    params.push(input.permission_mode);
-  }
-  if (input.max_turns !== undefined) {
-    sets.push(`max_turns = $${idx++}`);
-    params.push(input.max_turns);
-  }
-  if (input.max_budget_usd !== undefined) {
-    sets.push(`max_budget_usd = $${idx++}`);
-    params.push(input.max_budget_usd);
-  }
-  if (input.skills !== undefined) {
-    sets.push(`skills = $${idx++}`);
-    params.push(JSON.stringify(input.skills));
+  const fieldMap: Array<[keyof typeof input, string, ((v: unknown) => unknown)?]> = [
+    ["name", "name"],
+    ["description", "description"],
+    ["model", "model"],
+    ["permission_mode", "permission_mode"],
+    ["max_turns", "max_turns"],
+    ["max_budget_usd", "max_budget_usd"],
+    ["composio_toolkits", "composio_toolkits", (v) => {
+      // Clear MCP cache when toolkits change
+      sets.push(`composio_mcp_server_id = NULL`);
+      sets.push(`composio_mcp_server_name = NULL`);
+      sets.push(`composio_mcp_url = NULL`);
+      sets.push(`composio_mcp_api_key_enc = NULL`);
+      return v;
+    }],
+    ["skills", "skills", (v) => JSON.stringify(v)],
+  ];
+
+  for (const [field, col, transform] of fieldMap) {
+    if (input[field] !== undefined) {
+      const val = transform ? transform(input[field]) : input[field];
+      sets.push(`${col} = $${idx++}`);
+      params.push(val);
+    }
   }
 
   if (sets.length === 0) {

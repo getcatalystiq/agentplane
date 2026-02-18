@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { ToolkitMultiselect } from "@/components/toolkit-multiselect";
 
 const MODELS = [
   { value: "claude-opus-4-6", label: "Claude Opus 4.6" },
@@ -27,7 +28,7 @@ export function AgentEditForm({ agent }: { agent: Agent }) {
   const router = useRouter();
   const [name, setName] = useState(agent.name);
   const [description, setDescription] = useState(agent.description ?? "");
-  const [composioToolkits, setComposioToolkits] = useState(agent.composio_toolkits.join(", "));
+  const [composioToolkits, setComposioToolkits] = useState<string[]>(agent.composio_toolkits);
   const [model, setModel] = useState(agent.model);
   const [permissionMode, setPermissionMode] = useState(agent.permission_mode);
   const [maxTurns, setMaxTurns] = useState(agent.max_turns.toString());
@@ -37,18 +38,13 @@ export function AgentEditForm({ agent }: { agent: Agent }) {
   async function handleSave() {
     setSaving(true);
     try {
-      const toolkits = composioToolkits
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean);
-
       await fetch(`/api/admin/agents/${agent.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
           description: description || null,
-          composio_toolkits: toolkits,
+          composio_toolkits: composioToolkits,
           model,
           permission_mode: permissionMode,
           max_turns: parseInt(maxTurns),
@@ -74,11 +70,7 @@ export function AgentEditForm({ agent }: { agent: Agent }) {
           </div>
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">Composio Toolkits</label>
-            <Input
-              value={composioToolkits}
-              onChange={(e) => setComposioToolkits(e.target.value)}
-              placeholder="e.g. firecrawl, github (comma-separated)"
-            />
+            <ToolkitMultiselect value={composioToolkits} onChange={setComposioToolkits} />
           </div>
         </div>
         <div className="space-y-1">
