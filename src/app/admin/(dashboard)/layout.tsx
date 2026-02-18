@@ -20,7 +20,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <Image src="/logo-32.png" alt="AgentPlane" width={24} height={24} className="shrink-0" />
             AgentPlane
           </Link>
-          <p className="text-xs text-muted-foreground">Admin Console</p>
         </div>
         <nav className="flex-1 p-2 space-y-1">
           {navItems.map((item) => (
