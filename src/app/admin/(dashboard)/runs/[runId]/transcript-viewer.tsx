@@ -259,14 +259,6 @@ function ToolItem({ item }: { item: ConversationItem }) {
 function ResultItem({ item }: { item: ConversationItem }) {
   return (
     <div className="rounded-md border border-green-500/30 bg-green-500/5 px-4 py-3">
-      <div className="flex items-center gap-3 text-sm">
-        <Badge variant="default" className="text-[10px]">{item.subtype}</Badge>
-        <span className="font-mono">${item.costUsd?.toFixed(4)}</span>
-        <span className="text-muted-foreground">&middot;</span>
-        <span>{item.numTurns} turns</span>
-        <span className="text-muted-foreground">&middot;</span>
-        <span>{((item.durationMs || 0) / 1000).toFixed(1)}s</span>
-      </div>
       {item.text && (
         <div className="mt-2 text-sm prose prose-sm dark:prose-invert max-w-none">
           <ReactMarkdown>{item.text}</ReactMarkdown>
