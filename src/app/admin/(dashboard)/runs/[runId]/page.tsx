@@ -8,8 +8,15 @@ import { TranscriptViewer } from "./transcript-viewer";
 
 export const dynamic = "force-dynamic";
 
-export default async function RunDetailPage({ params }: { params: Promise<{ runId: string }> }) {
+export default async function RunDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ runId: string }>;
+  searchParams: Promise<{ from?: string }>;
+}) {
   const { runId } = await params;
+  const { from } = await searchParams;
 
   const run = await queryOne(RunRow, "SELECT * FROM runs WHERE id = $1", [runId]);
   if (!run) notFound();
@@ -45,7 +52,11 @@ export default async function RunDetailPage({ params }: { params: Promise<{ runI
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <Link href="/admin/runs" className="text-muted-foreground hover:text-foreground text-sm">&larr; Runs</Link>
+        {from === "agent" ? (
+          <Link href={`/admin/agents/${run.agent_id}`} className="text-muted-foreground hover:text-foreground text-sm">&larr; Agent</Link>
+        ) : (
+          <Link href="/admin/runs" className="text-muted-foreground hover:text-foreground text-sm">&larr; Runs</Link>
+        )}
         <span className="text-muted-foreground">/</span>
         <h1 className="text-2xl font-semibold font-mono">{run.id.slice(0, 12)}...</h1>
         <Badge variant={statusVariant}>{run.status}</Badge>

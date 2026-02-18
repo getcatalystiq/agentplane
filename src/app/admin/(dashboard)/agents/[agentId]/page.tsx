@@ -103,7 +103,7 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ ag
               {recentRuns.map((r) => (
                 <tr key={r.id} className="border-b border-border hover:bg-muted/30">
                   <td className="p-3 font-mono text-xs">
-                    <Link href={`/admin/runs/${r.id}`} className="text-primary hover:underline">
+                    <Link href={`/admin/runs/${r.id}?from=agent`} className="text-primary hover:underline">
                       {r.id.slice(0, 8)}...
                     </Link>
                   </td>

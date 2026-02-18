@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { LayoutDashboard, Users, Bot, Play } from "lucide-react";
 import { LogoutButton } from "./logout-button";
 
@@ -15,7 +16,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Sidebar */}
       <aside className="w-56 border-r border-border flex flex-col">
         <div className="p-4 border-b border-border">
-          <Link href="/admin" className="text-lg font-semibold tracking-tight">
+          <Link href="/admin" className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+            <Image src="/logo-32.png" alt="AgentPlane" width={24} height={24} className="shrink-0" />
             AgentPlane
           </Link>
           <p className="text-xs text-muted-foreground">Admin Console</p>
