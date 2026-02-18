@@ -70,7 +70,8 @@ export default async function RunDetailPage({
               <CardTitle className="text-sm font-medium text-muted-foreground">Result Summary</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground line-clamp-3">{run.result_summary}</p>
+              <p className="text-2xl font-bold line-clamp-1">{run.result_summary}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{run.status}</p>
             </CardContent>
           </Card>
         )}
