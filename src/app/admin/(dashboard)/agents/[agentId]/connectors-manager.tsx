@@ -319,8 +319,8 @@ export function ConnectorsManager({ agentId, toolkits: initialToolkits, composio
             </div>
 
             {/* MCP servers picker */}
-            <div className="rounded-lg border border-border p-3">
-              <p className="text-xs font-medium text-muted-foreground mb-2">Custom Connectors</p>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-1.5">Custom Connectors</p>
               {availableMcpServers.length === 0 ? (
                 <p className="text-xs text-muted-foreground">
                   {mcpServers.length === 0 ? "No custom connectors registered." : "All servers are already connected."}
