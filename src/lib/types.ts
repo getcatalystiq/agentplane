@@ -16,6 +16,16 @@ export type TenantStatus = "active" | "suspended";
 
 export type LlmProvider = "anthropic" | "bedrock";
 
+export type AuthScheme = "OAUTH2" | "OAUTH1" | "API_KEY" | "NO_AUTH" | "OTHER";
+
+export interface TenantConnectorInfo {
+  slug: string;
+  name: string;
+  logo: string;
+  auth_scheme: AuthScheme;
+  connected: boolean;
+}
+
 export type PermissionMode =
   | "default"
   | "acceptEdits"

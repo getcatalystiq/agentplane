@@ -1,5 +1,6 @@
 import ComposioClient from "@composio/client";
 import { logger } from "./logger";
+import type { TenantConnectorInfo } from "./types";
 
 let _client: InstanceType<typeof ComposioClient> | null = null;
 
@@ -259,6 +260,31 @@ export interface ConnectorStatus {
 }
 
 /**
+ * Map internal ConnectorStatus to a tenant-safe response that strips
+ * Composio implementation details (auth config IDs, connected account IDs).
+ */
+export function toTenantConnectorInfo(status: ConnectorStatus): TenantConnectorInfo {
+  return {
+    slug: status.slug,
+    name: status.name,
+    logo: status.logo,
+    auth_scheme: status.authScheme,
+    connected: status.connectionStatus === "ACTIVE",
+  };
+}
+
+/**
+ * Map a raw Composio error message to a safe, generic message for tenants.
+ * Never expose internal Composio details (API URLs, config IDs, etc.).
+ */
+export function sanitizeComposioError(msg: string): string {
+  if (msg.includes("duplicate")) return "Connection already exists for this toolkit";
+  if (msg.includes("invalid")) return "Invalid API key format";
+  if (msg.includes("not found")) return "Toolkit not found";
+  return "Failed to save connector — please try again";
+}
+
+/**
  * For each toolkit in `slugs`, return its auth scheme and whether the given
  * tenant has an active connected account.
  */
@@ -288,26 +314,21 @@ export async function getConnectorStatuses(
           authScheme = "API_KEY";
         }
 
-        // Auth config
-        const acRes = await client.authConfigs.list({ toolkit_slug: slugLower, limit: 10 });
-        const ac = acRes.items.find((c) => c.status === "ENABLED") ?? acRes.items[0] ?? null;
-
-        // Connected account for this tenant
-        const caRes = ac
-          ? await client.connectedAccounts.list({
-              toolkit_slugs: [slugLower],
-              user_ids: [tenantId],
-              limit: 5,
-            })
-          : null;
-        const ca = caRes?.items[0] ?? null;
+        // Connected account for this tenant — auth config ID is read from the
+        // connected account itself to avoid leaking another tenant's config ID.
+        const caRes = await client.connectedAccounts.list({
+          toolkit_slugs: [slugLower],
+          user_ids: [tenantId],
+          limit: 5,
+        });
+        const ca = caRes.items[0] ?? null;
 
         return {
           slug: slugLower,
           name: tk?.name ?? slug,
           logo: tk?.meta.logo ?? "",
           authScheme,
-          authConfigId: ac?.id ?? null,
+          authConfigId: ca?.auth_config?.id ?? null,
           connectedAccountId: ca?.id ?? null,
           connectionStatus: ca?.status ?? null,
         };
@@ -334,8 +355,14 @@ export async function getConnectorStatuses(
 
 /**
  * Save an API key for a toolkit by:
- * 1. Getting or creating an auth config with `shared_credentials: { api_key }`
- * 2. Creating a connected account for the tenant linked to that auth config
+ * 1. Looking up the tenant's existing connected account (if any) to find their
+ *    specific auth config — never reusing another tenant's auth config.
+ * 2. Updating that auth config's credentials, or creating a fresh per-tenant
+ *    auth config + connected account if none exists yet.
+ *
+ * Security: auth configs for API_KEY toolkits are per-tenant. Using a shared
+ * auth config would cause the last writer's credentials to apply to all tenants
+ * sharing that config.
  */
 export async function saveApiKeyConnector(
   tenantId: string,
@@ -347,49 +374,52 @@ export async function saveApiKeyConnector(
 
   const slugLower = slug.toLowerCase();
 
-  // Get or create auth config with shared credentials
-  const acRes = await client.authConfigs.list({ toolkit_slug: slugLower, limit: 10 });
-  let authConfigId = (acRes.items.find((c) => c.status === "ENABLED") ?? acRes.items[0])?.id ?? null;
-
-  if (authConfigId) {
-    // Update existing config's shared credentials
-    await client.authConfigs.update(authConfigId, {
-      type: "custom",
-      shared_credentials: { api_key: apiKey },
-    });
-    logger.info("Updated auth config shared credentials", { slug: slugLower, id: authConfigId });
-  } else {
-    // Create a custom auth config with API_KEY scheme + shared credentials.
-    // Must use `use_custom_auth` — Composio has no managed credentials for API-key toolkits.
-    const created = await client.authConfigs.create({
-      toolkit: { slug: slugLower },
-      auth_config: {
-        type: "use_custom_auth",
-        authScheme: "API_KEY",
-        shared_credentials: { api_key: apiKey },
-      },
-    });
-    authConfigId = created.auth_config.id;
-    logger.info("Created custom API_KEY auth config", { slug: slugLower, id: authConfigId });
-  }
-
-  // Create (or reuse) a connected account for this tenant
-  const caRes = await client.connectedAccounts.list({
+  // Check if this tenant already has a connected account for the toolkit.
+  // If so, update only the auth config linked to THEIR account — never touch
+  // a globally-shared config that could be used by other tenants.
+  const existingCaRes = await client.connectedAccounts.list({
     toolkit_slugs: [slugLower],
     user_ids: [tenantId],
     limit: 5,
   });
-  const existingCa = caRes.items[0];
+  const existingCa = existingCaRes.items[0] ?? null;
+
   if (existingCa) {
-    logger.info("Reusing existing connected account", { slug: slugLower, id: existingCa.id });
+    const authConfigId = existingCa.auth_config.id;
+    await client.authConfigs.update(authConfigId, {
+      type: "custom",
+      shared_credentials: { api_key: apiKey },
+    });
+    logger.info("Updated tenant-scoped auth config shared credentials", {
+      slug: slugLower,
+      id: authConfigId,
+      tenant_id: tenantId,
+    });
     return { authConfigId, connectedAccountId: existingCa.id };
   }
+
+  // No existing connection — create a fresh per-tenant auth config.
+  // Must use `use_custom_auth` — Composio has no managed credentials for API-key toolkits.
+  const created = await client.authConfigs.create({
+    toolkit: { slug: slugLower },
+    auth_config: {
+      type: "use_custom_auth",
+      authScheme: "API_KEY",
+      shared_credentials: { api_key: apiKey },
+    },
+  });
+  const authConfigId = created.auth_config.id;
+  logger.info("Created per-tenant API_KEY auth config", {
+    slug: slugLower,
+    id: authConfigId,
+    tenant_id: tenantId,
+  });
 
   const ca = await client.connectedAccounts.create({
     auth_config: { id: authConfigId },
     connection: { user_id: tenantId },
   });
-  logger.info("Created connected account", { slug: slugLower, id: ca.id });
+  logger.info("Created connected account", { slug: slugLower, id: ca.id, tenant_id: tenantId });
   return { authConfigId, connectedAccountId: ca.id };
 }
 

@@ -1,5 +1,5 @@
 import { Pool, neon } from "@neondatabase/serverless";
-import { z, ZodSchema } from "zod";
+import { ZodSchema } from "zod";
 import { logger } from "@/lib/logger";
 
 let _pool: Pool | null = null;

@@ -1,5 +1,3 @@
-import { logger } from "./logger";
-
 interface RateLimitResult {
   allowed: boolean;
   limit: number;

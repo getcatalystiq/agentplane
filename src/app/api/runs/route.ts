@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { after } from "next/server";
 import { authenticateApiKey } from "@/lib/auth";
 import { withErrorHandler, jsonResponse } from "@/lib/api";
-import { CreateRunSchema, PaginationSchema, RunRow } from "@/lib/validation";
+import { CreateRunSchema, PaginationSchema } from "@/lib/validation";
 import { createRun, transitionRunStatus, listRuns } from "@/lib/runs";
 import { createSandbox } from "@/lib/sandbox";
 import { buildMcpConfig } from "@/lib/mcp";
@@ -28,7 +28,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   );
 
   const runId = run.id as RunId;
-  let transcriptChunks: string[] = [];
+  const transcriptChunks: string[] = [];
 
   try {
     // Build MCP config for Composio toolkits

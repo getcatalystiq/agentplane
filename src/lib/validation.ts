@@ -1,5 +1,45 @@
 import { z } from "zod";
 
+// --- Skills Validation ---
+
+const SafeFolderName = z
+  .string()
+  .min(1)
+  .max(255)
+  .regex(/^[a-zA-Z0-9_-]+$/, "Folder must be alphanumeric with underscores/hyphens only");
+
+const SafeRelativePath = z
+  .string()
+  .min(1)
+  .max(500)
+  .refine((p) => !p.includes("..") && !p.startsWith("/") && !p.includes("\0"), {
+    message: "Path must be relative, no '..' segments, no null bytes",
+  });
+
+const AgentSkillFileSchema = z.object({
+  path: SafeRelativePath,
+  content: z.string().max(100_000),
+});
+
+const AgentSkillSchema = z.object({
+  folder: SafeFolderName,
+  files: z.array(AgentSkillFileSchema).min(1),
+});
+
+const SkillsSchema = z
+  .array(AgentSkillSchema)
+  .max(50, "Maximum 50 skills per agent")
+  .refine(
+    (skills) => {
+      const totalSize = skills.reduce(
+        (sum, s) => sum + s.files.reduce((fSum, f) => fSum + f.content.length, 0),
+        0,
+      );
+      return totalSize <= 5 * 1024 * 1024;
+    },
+    { message: "Total skills content must be under 5MB" },
+  );
+
 // --- Agent Validation ---
 
 export const CreateAgentSchema = z.object({
@@ -14,13 +54,7 @@ export const CreateAgentSchema = z.object({
     .optional(),
   git_branch: z.string().min(1).max(255).default("main"),
   composio_toolkits: z.array(z.string().min(1).max(100)).default([]),
-  skills: z.array(z.object({
-    folder: z.string().min(1).max(255),
-    files: z.array(z.object({
-      path: z.string().min(1).max(500),
-      content: z.string().max(100_000),
-    })).min(1),
-  })).default([]),
+  skills: SkillsSchema.default([]),
   model: z.string().min(1).max(100).default("claude-sonnet-4-6"),
   allowed_tools: z
     .array(z.string().min(1).max(100))
@@ -39,13 +73,7 @@ export const UpdateAgentSchema = z.object({
   git_repo_url: z.string().url().regex(/^https:\/\/github\.com\//).max(2048).nullable(),
   git_branch: z.string().min(1).max(255),
   composio_toolkits: z.array(z.string().min(1).max(100)),
-  skills: z.array(z.object({
-    folder: z.string().min(1).max(255),
-    files: z.array(z.object({
-      path: z.string().min(1).max(500),
-      content: z.string().max(100_000),
-    })).min(1),
-  })),
+  skills: SkillsSchema,
   model: z.string().min(1).max(100),
   allowed_tools: z.array(z.string().min(1).max(100)),
   permission_mode: z.enum(["default", "acceptEdits", "bypassPermissions", "plan"]),
@@ -121,7 +149,7 @@ export const AgentRow = z.object({
   composio_toolkits: z.array(z.string()),
   composio_mcp_server_id: z.string().nullable(),
   composio_mcp_server_name: z.string().nullable(),
-  skills: z.unknown().transform((v) => (Array.isArray(v) ? v : []) as Array<{ folder: string; files: Array<{ path: string; content: string }> }>),
+  skills: z.array(AgentSkillSchema).default([]).catch([]),
   model: z.string(),
   allowed_tools: z.array(z.string()),
   permission_mode: z.enum(["default", "acceptEdits", "bypassPermissions", "plan"]),

@@ -70,11 +70,16 @@ export async function createSandbox(config: SandboxConfig): Promise<SandboxInsta
   const runnerScript = buildRunnerScript(config);
 
   // Write skill files into .claude/skills/<folder>/
+  const skillsRoot = "/vercel/sandbox/.claude/skills";
   const skillFiles = config.agent.skills.flatMap((skill) =>
-    skill.files.map((file) => ({
-      path: `/vercel/sandbox/.claude/skills/${skill.folder}/${file.path}`,
-      content: Buffer.from(file.content),
-    })),
+    skill.files.map((file) => {
+      const filePath = `${skillsRoot}/${skill.folder}/${file.path}`;
+      // Defense-in-depth: verify resolved path stays under skills root
+      if (!filePath.startsWith(skillsRoot + "/")) {
+        throw new Error(`Skill path escapes skills root: ${skill.folder}/${file.path}`);
+      }
+      return { path: filePath, content: Buffer.from(file.content) };
+    }),
   );
 
   // Write runner + skill files to sandbox

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -43,7 +43,7 @@ export function ConnectorsManager({ agentId, toolkits: initialToolkits }: Props)
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`/api/admin/agents/${agentId}/connectors`);
@@ -52,9 +52,10 @@ export function ConnectorsManager({ agentId, toolkits: initialToolkits }: Props)
     } finally {
       setLoading(false);
     }
-  }
+  }, [agentId]);
 
-  useEffect(() => { load(); }, [agentId, localToolkits.join(",")]);
+  const toolkitsKey = localToolkits.join(",");
+  useEffect(() => { load(); }, [load, toolkitsKey]);
 
   async function patchToolkits(newToolkits: string[]) {
     await fetch(`/api/admin/agents/${agentId}`, {
