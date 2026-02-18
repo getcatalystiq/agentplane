@@ -8,10 +8,6 @@ const EnvSchema = z.object({
   // Vercel Blob
   BLOB_READ_WRITE_TOKEN: z.string().optional(),
 
-  // Vercel KV (optional, for rate limiting)
-  KV_REST_API_URL: z.string().optional(),
-  KV_REST_API_TOKEN: z.string().optional(),
-
   // Vercel Cron
   CRON_SECRET: z.string().optional(),
 
