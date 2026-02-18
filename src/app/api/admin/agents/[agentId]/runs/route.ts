@@ -140,15 +140,15 @@ function parseResultEvent(line: string): {
         status: event.subtype === "success" ? "completed" : "failed",
         updates: {
           result_summary: event.subtype,
-          cost_usd: event.cost_usd,
+          cost_usd: event.total_cost_usd,
           num_turns: event.num_turns,
           duration_ms: event.duration_ms,
           duration_api_ms: event.duration_api_ms,
           total_input_tokens: event.usage?.input_tokens,
           total_output_tokens: event.usage?.output_tokens,
-          cache_read_tokens: event.usage?.cache_read_tokens,
-          cache_creation_tokens: event.usage?.cache_creation_tokens,
-          model_usage: event.model_usage,
+          cache_read_tokens: event.usage?.cache_read_input_tokens,
+          cache_creation_tokens: event.usage?.cache_creation_input_tokens,
+          model_usage: event.modelUsage,
         },
       };
     }
