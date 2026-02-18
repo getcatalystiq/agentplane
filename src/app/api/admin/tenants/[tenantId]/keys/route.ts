@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { query, execute } from "@/db";
 import { ApiKeyRow, CreateApiKeySchema } from "@/lib/validation";
 import { generateApiKey, hashApiKey, generateId } from "@/lib/crypto";
+import { withErrorHandler } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
 type RouteContext = { params: Promise<{ tenantId: string }> };
 
-export async function GET(_request: NextRequest, context: RouteContext) {
-  const { tenantId } = await context.params;
+export const GET = withErrorHandler(async (_request: NextRequest, context) => {
+  const { tenantId } = await (context as RouteContext).params;
 
   const keys = await query(
     ApiKeyRow.omit({ key_hash: true }),
@@ -20,10 +21,10 @@ export async function GET(_request: NextRequest, context: RouteContext) {
   );
 
   return NextResponse.json({ data: keys });
-}
+});
 
-export async function POST(request: NextRequest, context: RouteContext) {
-  const { tenantId } = await context.params;
+export const POST = withErrorHandler(async (request: NextRequest, context) => {
+  const { tenantId } = await (context as RouteContext).params;
   const body = await request.json();
   const input = CreateApiKeySchema.parse(body);
 
@@ -38,4 +39,4 @@ export async function POST(request: NextRequest, context: RouteContext) {
   );
 
   return NextResponse.json({ id, name: input.name, key: raw, key_prefix: prefix }, { status: 201 });
-}
+});

@@ -12,7 +12,7 @@ const EnvSchema = z.object({
   CRON_SECRET: z.string().optional(),
 
   // Platform security
-  ENCRYPTION_KEY: z.string().length(64, "ENCRYPTION_KEY must be 64 hex chars (32 bytes)").optional(),
+  ENCRYPTION_KEY: z.string().length(64, "ENCRYPTION_KEY must be 64 hex chars (32 bytes)"),
   ENCRYPTION_KEY_PREVIOUS: z.string().length(64).optional(),
   ADMIN_API_KEY: z.string().min(1, "ADMIN_API_KEY is required"),
 

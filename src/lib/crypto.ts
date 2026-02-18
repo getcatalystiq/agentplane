@@ -4,18 +4,23 @@ import { v4 as uuidv4 } from "uuid";
 
 const BASE62_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
-function base62Encode(bytes: Uint8Array): string {
+function base62Encode(byteCount: number): string {
   let result = "";
-  for (const byte of bytes) {
-    result += BASE62_CHARS[byte % 62];
+  while (result.length < byteCount) {
+    const bytes = new Uint8Array(byteCount - result.length);
+    crypto.getRandomValues(bytes);
+    for (const byte of bytes) {
+      // Rejection sampling: discard bytes >= 248 (= 62 * 4) to avoid modular bias
+      if (byte < 248 && result.length < byteCount) {
+        result += BASE62_CHARS[byte % 62];
+      }
+    }
   }
   return result;
 }
 
 export function generateApiKey(): { raw: string; prefix: string } {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  const encoded = base62Encode(bytes);
+  const encoded = base62Encode(32);
   const raw = `ap_live_${encoded}`;
   const prefix = `ap_live_${encoded.slice(0, 4)}`;
   return { raw, prefix };
@@ -115,16 +120,18 @@ export function generateId(): string {
   return uuidv4();
 }
 
-// --- Timing-safe comparison for admin keys ---
+// --- Timing-safe comparison ---
+// Pads both strings to equal length to prevent length leakage via timing.
 
 export function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
   const encoder = new TextEncoder();
   const bufA = encoder.encode(a);
   const bufB = encoder.encode(b);
-  let result = 0;
-  for (let i = 0; i < bufA.length; i++) {
-    result |= bufA[i] ^ bufB[i];
+  const maxLen = Math.max(bufA.length, bufB.length);
+  // XOR lengths — non-zero if they differ (checked in constant time below)
+  let result = bufA.length ^ bufB.length;
+  for (let i = 0; i < maxLen; i++) {
+    result |= (bufA[i] ?? 0) ^ (bufB[i] ?? 0);
   }
   return result === 0;
 }

@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryOne } from "@/db";
 import { RunRow } from "@/lib/validation";
+import { withErrorHandler } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
 type RouteContext = { params: Promise<{ runId: string }> };
 
-export async function GET(_request: NextRequest, context: RouteContext) {
-  const { runId } = await context.params;
+export const GET = withErrorHandler(async (_request: NextRequest, context) => {
+  const { runId } = await (context as RouteContext).params;
 
   const run = await queryOne(RunRow, "SELECT * FROM runs WHERE id = $1", [runId]);
   if (!run) {
@@ -38,4 +39,4 @@ export async function GET(_request: NextRequest, context: RouteContext) {
   }
 
   return NextResponse.json({ run, transcript });
-}
+});

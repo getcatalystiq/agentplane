@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { after } from "next/server";
 import { authenticateApiKey } from "@/lib/auth";
 import { withErrorHandler, jsonResponse } from "@/lib/api";
-import { CreateRunSchema, PaginationSchema } from "@/lib/validation";
+import { CreateRunSchema, PaginationSchema, RunStatusSchema } from "@/lib/validation";
 import { createRun, transitionRunStatus, listRuns } from "@/lib/runs";
 import { createSandbox } from "@/lib/sandbox";
 import { buildMcpConfig } from "@/lib/mcp";
@@ -45,7 +45,10 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       prompt: input.prompt,
       platformApiUrl: new URL(request.url).origin,
       aiGatewayApiKey: process.env.AI_GATEWAY_API_KEY!,
-      ...(mcpResult.servers.composio ? { composioMcpUrl: mcpResult.servers.composio.url } : {}),
+      ...(mcpResult.servers.composio ? {
+        composioMcpUrl: mcpResult.servers.composio.url,
+        composioMcpHeaders: mcpResult.servers.composio.headers,
+      } : {}),
       mcpErrors: mcpResult.errors,
     });
 
@@ -133,7 +136,8 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     offset: url.searchParams.get("offset"),
   });
   const agentId = url.searchParams.get("agent_id") ?? undefined;
-  const status = (url.searchParams.get("status") as RunStatus) ?? undefined;
+  const statusParam = url.searchParams.get("status");
+  const status = statusParam ? RunStatusSchema.parse(statusParam) : undefined;
 
   const runs = await listRuns(auth.tenantId, {
     agentId,

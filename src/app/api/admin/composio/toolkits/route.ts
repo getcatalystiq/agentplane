@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import ComposioClient from "@composio/client";
+import { withErrorHandler } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +10,7 @@ export interface ToolkitOption {
   logo: string;
 }
 
-export async function GET() {
+export const GET = withErrorHandler(async () => {
   const apiKey = process.env.COMPOSIO_API_KEY;
   if (!apiKey) {
     return NextResponse.json({ data: [] });
@@ -31,4 +32,4 @@ export async function GET() {
   }));
 
   return NextResponse.json({ data: toolkits });
-}
+});

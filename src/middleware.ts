@@ -9,7 +9,7 @@ function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname.startsWith(p));
 }
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // --- Admin UI pages ---
@@ -19,7 +19,7 @@ export function middleware(request: NextRequest) {
       return NextResponse.next();
     }
     // All other admin pages require cookie auth
-    if (!authenticateAdminFromCookie(request)) {
+    if (!(await authenticateAdminFromCookie(request))) {
       const loginUrl = new URL("/admin/login", request.url);
       return NextResponse.redirect(loginUrl);
     }
@@ -32,7 +32,7 @@ export function middleware(request: NextRequest) {
     if (pathname === "/api/admin/login") {
       return NextResponse.next();
     }
-    if (!authenticateAdminFromCookie(request)) {
+    if (!(await authenticateAdminFromCookie(request))) {
       return NextResponse.json(
         { error: { code: "unauthorized", message: "Admin authentication required" } },
         { status: 401 },
@@ -71,8 +71,7 @@ export function middleware(request: NextRequest) {
   if (
     !token.startsWith("ap_live_") &&
     !token.startsWith("ap_test_") &&
-    !token.startsWith("ap_admin_") &&
-    token !== process.env.ADMIN_API_KEY
+    !token.startsWith("ap_admin_")
   ) {
     return NextResponse.json(
       { error: { code: "unauthorized", message: "Invalid API key format" } },

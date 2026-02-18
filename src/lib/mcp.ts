@@ -44,43 +44,30 @@ export async function buildMcpConfig(
     const mcpApiKey = mcpConfig.apiKey;
 
     // Persist server info so future runs can update rather than recreate.
-    if (env.ENCRYPTION_KEY) {
-      const encData = await encrypt(mcpApiKey, env.ENCRYPTION_KEY);
-      await execute(
-        `UPDATE agents
-         SET composio_mcp_server_id   = $1,
-             composio_mcp_server_name = $2,
-             composio_mcp_url         = $3,
-             composio_mcp_api_key_enc = $4
-         WHERE id = $5`,
-        [
-          mcpConfig.serverId,
-          mcpConfig.serverName,
-          mcpUrl,
-          JSON.stringify(encData),
-          agent.id,
-        ],
-      );
-    } else {
-      await execute(
-        `UPDATE agents
-         SET composio_mcp_server_id   = $1,
-             composio_mcp_server_name = $2
-         WHERE id = $3`,
-        [mcpConfig.serverId, mcpConfig.serverName, agent.id],
-      );
-      logger.warn(
-        "ENCRYPTION_KEY not set — Composio MCP API key will not be cached",
-        { agent_id: agent.id },
-      );
-    }
+    const encData = await encrypt(mcpApiKey, env.ENCRYPTION_KEY);
+    await execute(
+      `UPDATE agents
+       SET composio_mcp_server_id   = $1,
+           composio_mcp_server_name = $2,
+           composio_mcp_url         = $3,
+           composio_mcp_api_key_enc = $4
+       WHERE id = $5 AND tenant_id = $6`,
+      [
+        mcpConfig.serverId,
+        mcpConfig.serverName,
+        mcpUrl,
+        JSON.stringify(encData),
+        agent.id,
+        tenantId,
+      ],
+    );
 
-    // Reconstruct the full URL with the API key as a query parameter
-    const finalUrl = mcpApiKey
-      ? `${mcpUrl}${mcpUrl.includes("?") ? "&" : "?"}apiKey=${encodeURIComponent(mcpApiKey)}`
-      : mcpUrl;
-
-    servers.composio = { type: "http", url: finalUrl };
+    // Pass API key via headers instead of URL query param to avoid logging leaks
+    servers.composio = {
+      type: "http",
+      url: mcpUrl,
+      ...(mcpApiKey ? { headers: { "x-api-key": mcpApiKey } } : {}),
+    };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     errors.push(msg);

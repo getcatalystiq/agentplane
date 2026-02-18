@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { queryOne, query, execute } from "@/db";
 import { AgentRow, RunRow, UpdateAgentSchema } from "@/lib/validation";
 import { removeToolkitConnections } from "@/lib/composio";
+import { withErrorHandler } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
 type RouteContext = { params: Promise<{ agentId: string }> };
 
-export async function GET(_request: NextRequest, context: RouteContext) {
-  const { agentId } = await context.params;
+export const GET = withErrorHandler(async (_request: NextRequest, context) => {
+  const { agentId } = await (context as RouteContext).params;
 
   const agent = await queryOne(AgentRow, "SELECT * FROM agents WHERE id = $1", [agentId]);
   if (!agent) {
@@ -22,10 +23,10 @@ export async function GET(_request: NextRequest, context: RouteContext) {
   );
 
   return NextResponse.json({ agent, recent_runs: recentRuns });
-}
+});
 
-export async function PATCH(request: NextRequest, context: RouteContext) {
-  const { agentId } = await context.params;
+export const PATCH = withErrorHandler(async (request: NextRequest, context) => {
+  const { agentId } = await (context as RouteContext).params;
   const body = await request.json();
   const input = UpdateAgentSchema.parse(body);
 
@@ -77,4 +78,4 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
   const agent = await queryOne(AgentRow, "SELECT * FROM agents WHERE id = $1", [agentId]);
   return NextResponse.json(agent);
-}
+});

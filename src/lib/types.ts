@@ -22,7 +22,7 @@ export interface TenantConnectorInfo {
 }
 
 export const VALID_TRANSITIONS: Record<RunStatus, RunStatus[]> = {
-  pending: ["running", "failed"],
+  pending: ["running", "failed", "cancelled"],
   running: ["completed", "failed", "cancelled", "timed_out"],
   completed: [],
   failed: [],

@@ -11,16 +11,14 @@ export const dynamic = "force-dynamic";
 const STUCK_THRESHOLD_MS = (10 + 30) * 60 * 1000;
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
-  // Verify CRON_SECRET
+  // Verify CRON_SECRET — reject if not configured or mismatched
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const authHeader = request.headers.get("authorization");
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      return jsonResponse(
-        { error: { code: "unauthorized", message: "Invalid cron secret" } },
-        401,
-      );
-    }
+  const authHeader = request.headers.get("authorization");
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+    return jsonResponse(
+      { error: { code: "unauthorized", message: "Invalid cron secret" } },
+      401,
+    );
   }
 
   const cutoff = new Date(Date.now() - STUCK_THRESHOLD_MS);

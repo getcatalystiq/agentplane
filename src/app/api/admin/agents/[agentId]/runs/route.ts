@@ -7,6 +7,7 @@ import { buildMcpConfig } from "@/lib/mcp";
 import { uploadTranscript } from "@/lib/transcripts";
 import { processLineAssets } from "@/lib/assets";
 import { logger } from "@/lib/logger";
+import { withErrorHandler, jsonResponse } from "@/lib/api";
 import { z } from "zod";
 import type { AgentId, RunId, RunStatus, TenantId } from "@/lib/types";
 import { ndjsonHeaders } from "@/lib/streaming";
@@ -20,12 +21,12 @@ const PlaygroundRunSchema = z.object({
 
 type RouteContext = { params: Promise<{ agentId: string }> };
 
-export async function POST(request: NextRequest, context: RouteContext) {
-  const { agentId } = await context.params;
+export const POST = withErrorHandler(async (request: NextRequest, context) => {
+  const { agentId } = await (context as RouteContext).params;
 
   const agent = await queryOne(AgentRowInternal, "SELECT * FROM agents WHERE id = $1", [agentId]);
   if (!agent) {
-    return new Response(JSON.stringify({ error: "Agent not found" }), { status: 404 });
+    return jsonResponse({ error: { code: "not_found", message: "Agent not found" } }, 404);
   }
 
   const body = await request.json();
@@ -61,7 +62,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
         prompt,
         platformApiUrl: new URL(request.url).origin,
         aiGatewayApiKey: process.env.AI_GATEWAY_API_KEY!,
-        ...(mcpResult.servers.composio ? { composioMcpUrl: mcpResult.servers.composio.url } : {}),
+        ...(mcpResult.servers.composio ? {
+          composioMcpUrl: mcpResult.servers.composio.url,
+          composioMcpHeaders: mcpResult.servers.composio.headers,
+        } : {}),
         mcpErrors: mcpResult.errors,
       });
 
@@ -137,7 +141,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   })();
 
   return new Response(readable, { status: 200, headers: ndjsonHeaders() });
-}
+});
 
 function parseResultEvent(line: string): {
   status: RunStatus;

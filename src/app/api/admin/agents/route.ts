@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/db";
+import { PaginationSchema } from "@/lib/validation";
+import { withErrorHandler } from "@/lib/api";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -19,10 +21,12 @@ const AgentWithTenant = z.object({
   last_run_at: z.coerce.string().nullable(),
 });
 
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandler(async (request: NextRequest) => {
   const url = new URL(request.url);
-  const limit = Math.min(parseInt(url.searchParams.get("limit") || "50"), 100);
-  const offset = parseInt(url.searchParams.get("offset") || "0");
+  const { limit, offset } = PaginationSchema.parse({
+    limit: url.searchParams.get("limit") ?? "50",
+    offset: url.searchParams.get("offset") ?? "0",
+  });
 
   const agents = await query(
     AgentWithTenant,
@@ -40,4 +44,4 @@ export async function GET(request: NextRequest) {
   );
 
   return NextResponse.json({ data: agents, limit, offset });
-}
+});

@@ -1,11 +1,10 @@
 import { NextRequest } from "next/server";
 import { authenticateApiKey } from "@/lib/auth";
 import { withErrorHandler, jsonResponse } from "@/lib/api";
-import { PaginationSchema } from "@/lib/validation";
+import { PaginationSchema, RunStatusSchema } from "@/lib/validation";
 import { listRuns } from "@/lib/runs";
 import { queryOne } from "@/db";
 import { NotFoundError } from "@/lib/errors";
-import type { RunStatus } from "@/lib/types";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +26,8 @@ export const GET = withErrorHandler(async (request: NextRequest, context) => {
     limit: url.searchParams.get("limit"),
     offset: url.searchParams.get("offset"),
   });
-  const status = (url.searchParams.get("status") as RunStatus) ?? undefined;
+  const statusParam = url.searchParams.get("status");
+  const status = statusParam ? RunStatusSchema.parse(statusParam) : undefined;
 
   const runs = await listRuns(auth.tenantId, {
     agentId,

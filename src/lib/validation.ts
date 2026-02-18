@@ -105,6 +105,12 @@ export const CreateRunSchema = z.object({
 
 export type CreateRunInput = z.infer<typeof CreateRunSchema>;
 
+// --- Run Status Validation ---
+
+export const RunStatusSchema = z.enum([
+  "pending", "running", "completed", "failed", "cancelled", "timed_out",
+]);
+
 // --- Pagination ---
 
 export const PaginationSchema = z.object({

@@ -104,9 +104,20 @@ export async function transitionRunStatus(
   const params: unknown[] = [runId, tenantId, toStatus];
   let idx = 4;
 
+  const ALLOWED_COLUMNS = new Set([
+    "sandbox_id", "started_at", "completed_at", "result_summary",
+    "cost_usd", "total_input_tokens", "total_output_tokens",
+    "cache_read_tokens", "cache_creation_tokens", "num_turns",
+    "duration_ms", "duration_api_ms", "model_usage",
+    "transcript_blob_url", "error_type", "error_messages",
+  ]);
+
   if (updates) {
     for (const [key, value] of Object.entries(updates)) {
       if (value !== undefined) {
+        if (!ALLOWED_COLUMNS.has(key)) {
+          throw new Error(`Invalid column name in run update: ${key}`);
+        }
         setClauses.push(`${key} = $${idx}`);
         params.push(key === "model_usage" ? JSON.stringify(value) : value);
         idx++;

@@ -8,14 +8,12 @@ const ApiKeyRow = z.object({
   id: z.string(),
   tenant_id: z.string(),
   name: z.string(),
-  scopes: z.array(z.string()),
 });
 
 export interface AuthContext {
   tenantId: TenantId;
   apiKeyId: string;
   apiKeyName: string;
-  scopes: string[];
 }
 
 export async function authenticateApiKey(
@@ -35,7 +33,7 @@ export async function authenticateApiKey(
 
   const row = await queryOne(
     ApiKeyRow,
-    `SELECT id, tenant_id, name, scopes
+    `SELECT id, tenant_id, name
      FROM api_keys
      WHERE key_hash = $1
        AND revoked_at IS NULL
@@ -61,7 +59,6 @@ export async function authenticateApiKey(
     tenantId: row.tenant_id as TenantId,
     apiKeyId: row.id,
     apiKeyName: row.name,
-    scopes: row.scopes,
   };
 }
 

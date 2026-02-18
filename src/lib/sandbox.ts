@@ -1,3 +1,4 @@
+import path from "path";
 import { Sandbox, type Command } from "@vercel/sandbox";
 import { logger } from "./logger";
 
@@ -73,12 +74,12 @@ export async function createSandbox(config: SandboxConfig): Promise<SandboxInsta
   const skillsRoot = "/vercel/sandbox/.claude/skills";
   const skillFiles = config.agent.skills.flatMap((skill) =>
     skill.files.map((file) => {
-      const filePath = `${skillsRoot}/${skill.folder}/${file.path}`;
+      const resolved = path.resolve(skillsRoot, skill.folder, file.path);
       // Defense-in-depth: verify resolved path stays under skills root
-      if (!filePath.startsWith(skillsRoot + "/")) {
+      if (!resolved.startsWith(skillsRoot + "/")) {
         throw new Error(`Skill path escapes skills root: ${skill.folder}/${file.path}`);
       }
-      return { path: filePath, content: Buffer.from(file.content) };
+      return { path: resolved, content: Buffer.from(file.content) };
     }),
   );
 
@@ -223,13 +224,8 @@ async function main() {
     agent_id: process.env.AGENTPLANE_AGENT_ID,
     model: config.model,
     timestamp: new Date().toISOString(),
-    debug_mcp: {
-      composio_url_present: !!process.env.COMPOSIO_MCP_URL,
-      composio_url_prefix: (process.env.COMPOSIO_MCP_URL || '').slice(0, 60),
-      mcp_server_count: Object.keys(mcpServers).length,
-      mcp_server_names: Object.keys(mcpServers),
-      mcp_errors: ${JSON.stringify(config.mcpErrors || [])},
-    },
+    mcp_server_count: Object.keys(mcpServers).length,
+    mcp_errors: ${JSON.stringify(config.mcpErrors || [])},
   });
 
   try {

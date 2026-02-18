@@ -33,9 +33,7 @@ function base64UrlDecode(str: string): Uint8Array {
 
 async function getHmacKey(): Promise<CryptoKey> {
   const env = getEnv();
-  const hexKey = env.ENCRYPTION_KEY ?? env.ADMIN_API_KEY;
-  // Use first 64 hex chars (32 bytes) for HMAC key
-  const hex = hexKey.slice(0, 64).padEnd(64, "0");
+  const hex = env.ENCRYPTION_KEY;
   const keyBytes = new Uint8Array(hex.match(/.{2}/g)!.map((h) => parseInt(h, 16)));
   return crypto.subtle.importKey("raw", keyBytes, { name: "HMAC", hash: "SHA-256" }, false, [
     "sign",

@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { execute } from "@/db";
+import { withErrorHandler } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
 type RouteContext = { params: Promise<{ tenantId: string; keyId: string }> };
 
-export async function DELETE(_request: NextRequest, context: RouteContext) {
-  const { tenantId, keyId } = await context.params;
+export const DELETE = withErrorHandler(async (_request: NextRequest, context) => {
+  const { tenantId, keyId } = await (context as RouteContext).params;
 
   const { rowCount } = await execute(
     `UPDATE api_keys SET revoked_at = NOW() WHERE id = $1 AND tenant_id = $2 AND revoked_at IS NULL`,
@@ -18,4 +19,4 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
   }
 
   return NextResponse.json({ ok: true });
-}
+});
