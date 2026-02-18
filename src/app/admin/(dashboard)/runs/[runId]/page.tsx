@@ -62,20 +62,18 @@ export default async function RunDetailPage({
         <Badge variant={statusVariant}>{run.status}</Badge>
       </div>
 
-      {/* Result summary */}
-      {run.result_summary && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Result Summary</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <pre className="whitespace-pre-wrap text-sm text-muted-foreground">{run.result_summary}</pre>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Metadata cards */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className={`grid gap-4 ${run.result_summary ? "grid-cols-5" : "grid-cols-4"}`}>
+        {run.result_summary && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Result Summary</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground line-clamp-3">{run.result_summary}</p>
+            </CardContent>
+          </Card>
+        )}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Cost</CardTitle>
