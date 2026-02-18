@@ -12,7 +12,7 @@ describe("CreateAgentSchema", () => {
     const result = CreateAgentSchema.parse({ name: "My Agent" });
     expect(result.name).toBe("My Agent");
     expect(result.model).toBe("claude-sonnet-4-6");
-    expect(result.max_turns).toBe(100);
+    expect(result.max_turns).toBe(10);
     expect(result.max_budget_usd).toBe(1.0);
     expect(result.permission_mode).toBe("bypassPermissions");
     expect(result.git_branch).toBe("main");

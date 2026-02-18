@@ -146,15 +146,16 @@ export async function registerClient(
   redirectUri: string,
   metadata: ClientRegistrationMetadata,
 ): Promise<{ clientId: string; clientSecret: string }> {
-  logger.info("Registering OAuth client", { endpoint: registrationEndpoint });
+  const requestBody = {
+    ...metadata,
+    redirect_uris: [redirectUri],
+  };
+  logger.info("Registering OAuth client", { endpoint: registrationEndpoint, body: requestBody });
 
   const response = await safeFetch(registrationEndpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      ...metadata,
-      redirect_uris: [redirectUri],
-    }),
+    body: JSON.stringify(requestBody),
   });
 
   if (!response.ok) {
