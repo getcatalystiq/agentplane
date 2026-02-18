@@ -75,6 +75,33 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ ag
 
       <SkillsEditor agentId={agent.id} initialSkills={agent.skills} />
 
+      {/* Composio MCP info (read-only) */}
+      {agent.composio_toolkits.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Composio MCP Server</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {agent.composio_mcp_server_id ? (
+              <>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Server Name</p>
+                  <p className="font-mono text-sm">{agent.composio_mcp_server_name}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Server ID</p>
+                  <p className="font-mono text-sm">{agent.composio_mcp_server_id}</p>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No MCP server provisioned yet — one will be created on the first run.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Recent runs */}
       <div>
         <h2 className="text-lg font-semibold mb-3">Recent Runs</h2>

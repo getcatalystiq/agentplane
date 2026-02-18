@@ -17,57 +17,87 @@ function getClient(): InstanceType<typeof ComposioClient> | null {
 
 export interface ComposioMcpConfig {
   url: string;
+  apiKey: string;
+  serverId: string;
+  serverName: string;
 }
 
 /**
- * Create an MCP server in Composio for the given toolkits and generate
- * a user-specific URL the sandbox can connect to.
+ * Get or create a Composio MCP server for the given toolkits.
+ * If existingServerId is provided, retrieves the existing server and generates
+ * a user-specific URL instead of creating a new one.
  */
-export async function createComposioMcpUrl(
+export async function getOrCreateComposioMcpServer(
   userId: string,
   toolkits: string[],
+  existingServerId?: string | null,
 ): Promise<ComposioMcpConfig | null> {
   const client = getClient();
   if (!client) return null;
 
   try {
-    // Create an MCP server with managed auth and the requested toolkits.
-    // Use a unique name per call to avoid MCP_DuplicateServerName errors,
-    // since Composio doesn't provide a get-or-create API.
-    const suffix = Date.now().toString(36);
-    const server = await client.mcp.create({
-      name: `ap-${userId.slice(0, 12)}-${suffix}`,
-      auth_config_ids: [],
-      managed_auth_via_composio: true,
-      no_auth_apps: toolkits.map((t) => t.toLowerCase()),
-    });
+    let serverId: string;
+    let serverName: string;
 
-    // Generate a user-specific URL
+    if (existingServerId) {
+      // Verify the server still exists
+      const server = await client.mcp.retrieve(existingServerId);
+      serverId = server.id;
+      serverName = server.name;
+      logger.info("Composio MCP server retrieved", { user_id: userId, server_id: serverId });
+    } else {
+      // Create a new MCP server with a stable name derived from the user ID.
+      // Using a fixed name (no timestamp suffix) so that if the DB write fails
+      // and we retry, we won't keep creating duplicates.
+      const name = `ap-${userId.slice(0, 16)}`;
+      const server = await client.mcp.create({
+        name,
+        auth_config_ids: [],
+        managed_auth_via_composio: true,
+        no_auth_apps: toolkits.map((t) => t.toLowerCase()),
+      });
+      serverId = server.id;
+      serverName = server.name;
+      logger.info("Composio MCP server created", {
+        user_id: userId,
+        toolkits,
+        server_id: serverId,
+        name: serverName,
+      });
+    }
+
+    // Generate a user-specific URL for this server
     const urlResponse = await client.mcp.generate.url({
-      mcp_server_id: server.id,
+      mcp_server_id: serverId,
       user_ids: [userId],
     });
 
-    const mcpUrl = urlResponse.user_ids_url?.[0] || urlResponse.mcp_url;
+    const fullUrl = urlResponse.user_ids_url?.[0] || urlResponse.mcp_url;
+
+    // Split the URL into base URL + API key so the key can be stored encrypted.
+    // Composio embeds the API key as the `apiKey` query parameter.
+    const urlObj = new URL(fullUrl);
+    const apiKey = urlObj.searchParams.get("apiKey") ?? "";
+    urlObj.searchParams.delete("apiKey");
+    const cleanUrl = urlObj.toString();
 
     logger.info("Composio MCP URL generated", {
       user_id: userId,
-      toolkits,
-      server_id: server.id,
-      url: mcpUrl?.slice(0, 60) + "...",
+      server_id: serverId,
+      url: cleanUrl.slice(0, 60) + "...",
     });
 
-    return { url: mcpUrl };
+    return { url: cleanUrl, apiKey, serverId, serverName };
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     const errorStack = err instanceof Error ? err.stack?.slice(0, 500) : undefined;
-    logger.error("Composio MCP URL generation failed", {
+    logger.error("Composio MCP server setup failed", {
       user_id: userId,
       toolkits,
+      existing_server_id: existingServerId,
       error: errorMsg,
       stack: errorStack,
     });
-    // Re-throw so callers can surface the error
     throw new Error(`Composio MCP setup failed: ${errorMsg}`);
   }
 }

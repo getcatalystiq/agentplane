@@ -61,6 +61,16 @@ export const PUT = withErrorHandler(async (request: NextRequest, context) => {
     }
   }
 
+  // When toolkits change the cached MCP server/URL is no longer valid
+  if (input.composio_toolkits !== undefined) {
+    setClauses.push(
+      `composio_mcp_server_id = NULL`,
+      `composio_mcp_server_name = NULL`,
+      `composio_mcp_url = NULL`,
+      `composio_mcp_api_key_enc = NULL`,
+    );
+  }
+
   params.push(agentId, auth.tenantId);
   await execute(
     `UPDATE agents SET ${setClauses.join(", ")}

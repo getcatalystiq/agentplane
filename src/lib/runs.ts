@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { query, queryOne, execute, withTenantTransaction } from "@/db";
-import { RunRow, AgentRow } from "./validation";
+import { RunRow, AgentRowInternal, AgentInternal } from "./validation";
 import { generateId } from "./crypto";
 import { logger } from "./logger";
 import {
@@ -18,11 +18,11 @@ export async function createRun(
   tenantId: TenantId,
   agentId: AgentId,
   prompt: string,
-): Promise<{ run: z.infer<typeof RunRow>; agent: z.infer<typeof AgentRow> }> {
+): Promise<{ run: z.infer<typeof RunRow>; agent: AgentInternal }> {
   return withTenantTransaction(tenantId, async (tx) => {
-    // Load agent
+    // Load agent (including internal Composio MCP cache fields)
     const agent = await tx.queryOne(
-      AgentRow,
+      AgentRowInternal,
       "SELECT * FROM agents WHERE id = $1 AND tenant_id = $2",
       [agentId, tenantId],
     );

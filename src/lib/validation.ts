@@ -119,6 +119,8 @@ export const AgentRow = z.object({
   git_repo_url: z.string().nullable(),
   git_branch: z.string(),
   composio_toolkits: z.array(z.string()),
+  composio_mcp_server_id: z.string().nullable(),
+  composio_mcp_server_name: z.string().nullable(),
   skills: z.unknown().transform((v) => (Array.isArray(v) ? v : []) as Array<{ folder: string; files: Array<{ path: string; content: string }> }>),
   model: z.string(),
   allowed_tools: z.array(z.string()),
@@ -128,6 +130,14 @@ export const AgentRow = z.object({
   created_at: z.coerce.string(),
   updated_at: z.coerce.string(),
 });
+
+// Internal schema that includes sensitive Composio MCP fields not exposed in API responses.
+export const AgentRowInternal = AgentRow.extend({
+  composio_mcp_url: z.string().nullable(),
+  composio_mcp_api_key_enc: z.string().nullable(),
+});
+
+export type AgentInternal = z.infer<typeof AgentRowInternal>;
 
 export const RunRow = z.object({
   id: z.string(),
