@@ -107,18 +107,13 @@ function buildConversation(events: TranscriptEvent[]): ConversationItem[] {
   return items;
 }
 
-export function TranscriptViewer({ transcript, prompt, resultSummary }: { transcript: TranscriptEvent[]; prompt?: string; resultSummary?: string }) {
+export function TranscriptViewer({ transcript, prompt }: { transcript: TranscriptEvent[]; prompt?: string }) {
   const conversation = useMemo(() => buildConversation(transcript), [transcript]);
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+      <CardHeader>
         <CardTitle className="text-base">Transcript</CardTitle>
-        {resultSummary && (
-          <span className="text-xs text-muted-foreground bg-muted rounded-full px-3 py-1 max-w-sm truncate" title={resultSummary}>
-            {resultSummary}
-          </span>
-        )}
       </CardHeader>
       <CardContent className="space-y-3">
         {prompt && (
