@@ -8,7 +8,7 @@ export default function AgentsLoading() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/50">
-              {["Name", "Description", "Tenant", "Model", "Connectors", "Runs", "Last Run", "Created"].map((h) => (
+              {["Name", "Description", "Tenant", "Model", "Connectors", "Runs", "Last Run"].map((h) => (
                 <th key={h} className="text-left p-3 font-medium text-muted-foreground">{h}</th>
               ))}
             </tr>
@@ -23,7 +23,6 @@ export default function AgentsLoading() {
                 <td className="p-3"><Skeleton className="h-5 w-16 rounded-full" /></td>
                 <td className="p-3"><Skeleton className="h-4 w-8" /></td>
                 <td className="p-3"><Skeleton className="h-4 w-24" /></td>
-                <td className="p-3"><Skeleton className="h-4 w-20" /></td>
               </tr>
             ))}
           </tbody>

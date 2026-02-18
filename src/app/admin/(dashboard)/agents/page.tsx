@@ -67,7 +67,6 @@ export default async function AgentsPage() {
               <th className="text-left p-3 font-medium">MCP</th>
               <th className="text-right p-3 font-medium">Runs</th>
               <th className="text-left p-3 font-medium">Last Run</th>
-              <th className="text-left p-3 font-medium">Created</th>
               <th className="text-right p-3 font-medium"></th>
             </tr>
           </thead>
@@ -118,9 +117,6 @@ export default async function AgentsPage() {
                 <td className="p-3 text-muted-foreground text-xs">
                   {a.last_run_at ? new Date(a.last_run_at).toLocaleString() : "—"}
                 </td>
-                <td className="p-3 text-muted-foreground text-xs">
-                  {new Date(a.created_at).toLocaleDateString()}
-                </td>
                 <td className="p-3 text-right">
                   <DeleteAgentButton agentId={a.id} agentName={a.name} />
                 </td>
@@ -128,7 +124,7 @@ export default async function AgentsPage() {
             ))}
             {agents.length === 0 && (
               <tr>
-                <td colSpan={10} className="p-8 text-center text-muted-foreground">No agents found</td>
+                <td colSpan={9} className="p-8 text-center text-muted-foreground">No agents found</td>
               </tr>
             )}
           </tbody>
