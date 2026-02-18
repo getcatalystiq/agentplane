@@ -8,6 +8,7 @@ import { createSandbox } from "@/lib/sandbox";
 import { buildMcpConfig } from "@/lib/mcp";
 import { createNdjsonStream, ndjsonHeaders } from "@/lib/streaming";
 import { uploadTranscript } from "@/lib/transcripts";
+import { processLineAssets } from "@/lib/assets";
 import { logger } from "@/lib/logger";
 import type { AgentId, RunId, RunStatus } from "@/lib/types";
 
@@ -54,8 +55,13 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
       started_at: new Date().toISOString(),
     });
 
-    // Wrap sandbox logs to capture transcript
-    const logIterator = captureTranscript(sandbox.logs(), transcriptChunks);
+    // Wrap sandbox logs to capture transcript (with asset URL persistence)
+    const logIterator = captureTranscript(
+      sandbox.logs(),
+      transcriptChunks,
+      auth.tenantId,
+      runId,
+    );
 
     // Create pull-based NDJSON stream
     const stream = createNdjsonStream({
@@ -138,17 +144,22 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   return jsonResponse({ data: runs, limit: pagination.limit, offset: pagination.offset });
 });
 
-// Capture transcript while iterating logs
+// Capture transcript while iterating logs, persisting ephemeral asset URLs to Blob
 async function* captureTranscript(
   source: AsyncIterable<string>,
   chunks: string[],
+  tenantId: string,
+  runId: string,
 ): AsyncIterable<string> {
   for await (const line of source) {
     const trimmed = line.trim();
     if (trimmed) {
-      chunks.push(trimmed);
+      const processed = await processLineAssets(trimmed, tenantId, runId);
+      chunks.push(processed);
+      yield processed;
+    } else {
+      yield line;
     }
-    yield line;
   }
 }
 

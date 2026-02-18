@@ -5,6 +5,7 @@ import { createRun, transitionRunStatus } from "@/lib/runs";
 import { createSandbox } from "@/lib/sandbox";
 import { buildMcpConfig } from "@/lib/mcp";
 import { uploadTranscript } from "@/lib/transcripts";
+import { processLineAssets } from "@/lib/assets";
 import { logger } from "@/lib/logger";
 import { z } from "zod";
 import type { AgentId, RunId, RunStatus, TenantId } from "@/lib/types";
@@ -73,16 +74,18 @@ export async function POST(request: NextRequest, context: RouteContext) {
         for await (const line of sandbox.logs()) {
           const trimmed = line.trim();
           if (trimmed) {
+            // Persist ephemeral asset URLs to Blob before processing
+            const processed = await processLineAssets(trimmed, tenantId, runId!);
             let parsed: Record<string, unknown>;
             try {
-              parsed = JSON.parse(trimmed);
+              parsed = JSON.parse(processed);
             } catch {
               // Non-JSON output from sandbox (stderr, install noise, etc.) — skip
-              logger.debug("Non-JSON sandbox output", { run_id: runId, line: trimmed.slice(0, 200) });
+              logger.debug("Non-JSON sandbox output", { run_id: runId, line: processed.slice(0, 200) });
               continue;
             }
             // text_delta events are streaming-only — not stored in transcript
-            if (parsed.type !== "text_delta") transcriptChunks.push(trimmed);
+            if (parsed.type !== "text_delta") transcriptChunks.push(processed);
             await emit(parsed);
           }
         }
