@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { queryOne, execute } from "@/db";
+import { queryOne } from "@/db";
 import { AgentRow } from "@/lib/validation";
 import { getConnectorStatuses, saveApiKeyConnector } from "@/lib/composio";
 import { z } from "zod";
@@ -37,13 +37,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: msg }, { status: 400 });
   }
-
-  // Clear the MCP cache so the next run rebuilds the server with proper auth configs
-  await execute(
-    `UPDATE agents SET composio_mcp_server_id = NULL, composio_mcp_server_name = NULL,
-     composio_mcp_url = NULL, composio_mcp_api_key_enc = NULL WHERE id = $1`,
-    [agentId],
-  );
 
   return NextResponse.json(result);
 }
