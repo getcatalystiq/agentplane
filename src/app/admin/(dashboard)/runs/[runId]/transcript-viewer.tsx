@@ -108,7 +108,6 @@ function buildConversation(events: TranscriptEvent[]): ConversationItem[] {
 }
 
 export function TranscriptViewer({ transcript }: { transcript: TranscriptEvent[] }) {
-  const [formatted, setFormatted] = useState(true);
   const conversation = useMemo(() => buildConversation(transcript), [transcript]);
 
   if (transcript.length === 0) {
@@ -128,27 +127,9 @@ export function TranscriptViewer({ transcript }: { transcript: TranscriptEvent[]
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle className="text-base">Transcript</CardTitle>
-        <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
-          <button
-            onClick={() => setFormatted(true)}
-            className={`px-3 py-1 text-xs rounded transition-colors ${formatted ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-          >
-            Formatted
-          </button>
-          <button
-            onClick={() => setFormatted(false)}
-            className={`px-3 py-1 text-xs rounded transition-colors ${!formatted ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-          >
-            Raw
-          </button>
-        </div>
       </CardHeader>
       <CardContent>
-        {formatted ? (
-          <ConversationView items={conversation} />
-        ) : (
-          <RawView transcript={transcript} />
-        )}
+        <ConversationView items={conversation} />
       </CardContent>
     </Card>
   );
@@ -216,9 +197,7 @@ function AssistantItem({ item }: { item: ConversationItem }) {
   return (
     <div className="pl-4 border-l-2 border-primary/30">
       <div className="text-xs text-muted-foreground mb-1 font-medium">Assistant</div>
-      <div className="text-sm prose prose-sm dark:prose-invert max-w-none">
-        <ReactMarkdown>{item.text ?? ""}</ReactMarkdown>
-      </div>
+      <div className="text-sm whitespace-pre-wrap">{item.text}</div>
     </div>
   );
 }
@@ -268,6 +247,7 @@ function ToolItem({ item }: { item: ConversationItem }) {
 
 function ResultItem({ item, defaultExpanded = false }: { item: ConversationItem; defaultExpanded?: boolean }) {
   const [showFull, setShowFull] = useState(defaultExpanded);
+  const [formatted, setFormatted] = useState(true);
   return (
     <div className="rounded-md border border-green-500/30 bg-green-500/5 px-4 py-3">
       <div className="flex items-center gap-3 text-sm">
@@ -280,12 +260,36 @@ function ResultItem({ item, defaultExpanded = false }: { item: ConversationItem;
       </div>
       {item.text && (
         <div className="mt-2">
-          <button onClick={() => setShowFull(!showFull)} className="text-xs text-primary hover:underline">
-            {showFull ? "Hide result" : "Show result"}
-          </button>
+          <div className="flex items-center gap-3">
+            <button onClick={() => setShowFull(!showFull)} className="text-xs text-primary hover:underline">
+              {showFull ? "Hide result" : "Show result"}
+            </button>
+            {showFull && (
+              <div className="flex items-center gap-0.5 rounded border border-border p-0.5">
+                <button
+                  onClick={() => setFormatted(true)}
+                  className={`px-2 py-0.5 text-[10px] rounded transition-colors ${formatted ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  Formatted
+                </button>
+                <button
+                  onClick={() => setFormatted(false)}
+                  className={`px-2 py-0.5 text-[10px] rounded transition-colors ${!formatted ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  Raw
+                </button>
+              </div>
+            )}
+          </div>
           {showFull && (
-            <div className="mt-2 text-sm prose prose-sm dark:prose-invert max-w-none">
-              <ReactMarkdown>{item.text}</ReactMarkdown>
+            <div className="mt-2">
+              {formatted ? (
+                <div className="text-sm prose prose-sm dark:prose-invert max-w-none">
+                  <ReactMarkdown>{item.text}</ReactMarkdown>
+                </div>
+              ) : (
+                <pre className="text-xs font-mono whitespace-pre-wrap max-h-96 overflow-y-auto">{item.text}</pre>
+              )}
             </div>
           )}
         </div>
