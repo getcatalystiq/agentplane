@@ -1,5 +1,5 @@
 import { getOrCreateComposioMcpServer } from "./composio";
-import { encrypt, decrypt } from "./crypto";
+import { encrypt } from "./crypto";
 import { getEnv } from "./env";
 import { execute } from "@/db";
 import { logger } from "./logger";
@@ -29,64 +29,50 @@ export async function buildMcpConfig(
 
   try {
     const env = getEnv();
-    let mcpUrl: string;
-    let mcpApiKey: string;
 
-    if (agent.composio_mcp_url && agent.composio_mcp_api_key_enc) {
-      // Use fully cached URL + key
-      mcpUrl = agent.composio_mcp_url;
-      if (env.ENCRYPTION_KEY) {
-        const encData = JSON.parse(agent.composio_mcp_api_key_enc);
-        mcpApiKey = await decrypt(encData, env.ENCRYPTION_KEY, env.ENCRYPTION_KEY_PREVIOUS);
-      } else {
-        mcpApiKey = "";
-      }
-    } else {
-      // Create or retrieve the Composio MCP server, then generate a URL.
-      // Passing existingServerId avoids creating a duplicate server if we already
-      // have one stored (but the URL/key wasn't cached yet).
-      const mcpConfig = await getOrCreateComposioMcpServer(
-        tenantId,
-        agent.composio_toolkits,
-        agent.composio_mcp_server_id,
+    // Always call getOrCreateComposioMcpServer so the Composio server is kept
+    // in sync with the current toolkit list (e.g. newly added toolkits are
+    // picked up on every run rather than only on first-time setup).
+    const mcpConfig = await getOrCreateComposioMcpServer(
+      tenantId,
+      agent.composio_toolkits,
+      agent.composio_mcp_server_id,
+    );
+    if (!mcpConfig) return { servers, errors };
+
+    const mcpUrl = mcpConfig.url;
+    const mcpApiKey = mcpConfig.apiKey;
+
+    // Persist server info so future runs can update rather than recreate.
+    if (env.ENCRYPTION_KEY) {
+      const encData = await encrypt(mcpApiKey, env.ENCRYPTION_KEY);
+      await execute(
+        `UPDATE agents
+         SET composio_mcp_server_id   = $1,
+             composio_mcp_server_name = $2,
+             composio_mcp_url         = $3,
+             composio_mcp_api_key_enc = $4
+         WHERE id = $5`,
+        [
+          mcpConfig.serverId,
+          mcpConfig.serverName,
+          mcpUrl,
+          JSON.stringify(encData),
+          agent.id,
+        ],
       );
-      if (!mcpConfig) return { servers, errors };
-
-      mcpUrl = mcpConfig.url;
-      mcpApiKey = mcpConfig.apiKey;
-
-      // Persist server info and (if possible) the cached URL + encrypted key
-      if (env.ENCRYPTION_KEY) {
-        const encData = await encrypt(mcpApiKey, env.ENCRYPTION_KEY);
-        await execute(
-          `UPDATE agents
-           SET composio_mcp_server_id   = $1,
-               composio_mcp_server_name = $2,
-               composio_mcp_url         = $3,
-               composio_mcp_api_key_enc = $4
-           WHERE id = $5`,
-          [
-            mcpConfig.serverId,
-            mcpConfig.serverName,
-            mcpUrl,
-            JSON.stringify(encData),
-            agent.id,
-          ],
-        );
-      } else {
-        // Still persist the non-sensitive server info even without encryption
-        await execute(
-          `UPDATE agents
-           SET composio_mcp_server_id   = $1,
-               composio_mcp_server_name = $2
-           WHERE id = $3`,
-          [mcpConfig.serverId, mcpConfig.serverName, agent.id],
-        );
-        logger.warn(
-          "ENCRYPTION_KEY not set — Composio MCP API key will not be cached",
-          { agent_id: agent.id },
-        );
-      }
+    } else {
+      await execute(
+        `UPDATE agents
+         SET composio_mcp_server_id   = $1,
+             composio_mcp_server_name = $2
+         WHERE id = $3`,
+        [mcpConfig.serverId, mcpConfig.serverName, agent.id],
+      );
+      logger.warn(
+        "ENCRYPTION_KEY not set — Composio MCP API key will not be cached",
+        { agent_id: agent.id },
+      );
     }
 
     // Reconstruct the full URL with the API key as a query parameter

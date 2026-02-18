@@ -116,8 +116,8 @@ async function getOrCreateAuthConfig(
 
 /**
  * Get or create a Composio MCP server for the given toolkits.
- * If existingServerId is provided, retrieves the existing server and generates
- * a user-specific URL instead of creating a new one.
+ * If existingServerId is provided, updates the server with the current toolkit
+ * list (so newly-added toolkits are picked up) and generates a fresh URL.
  */
 export async function getOrCreateComposioMcpServer(
   userId: string,
@@ -132,11 +132,26 @@ export async function getOrCreateComposioMcpServer(
     let serverName: string;
 
     if (existingServerId) {
-      // Verify the server still exists
+      // Resolve auth configs for the current toolkit list so we can update
+      // the server with any newly-added toolkits.
+      const { authConfigIds } = await splitToolkitsForMcp(client, toolkits);
+
       const server = await client.mcp.retrieve(existingServerId);
       serverId = server.id;
       serverName = server.name;
-      logger.info("Composio MCP server retrieved", { user_id: userId, server_id: serverId });
+
+      // Update the server with the current toolkit set so newly-added toolkits
+      // are available on this run.
+      await client.mcp.update(serverId, {
+        auth_config_ids: authConfigIds,
+        toolkits: toolkits.map((t) => t.toLowerCase()),
+      });
+      logger.info("Composio MCP server updated with current toolkits", {
+        user_id: userId,
+        server_id: serverId,
+        toolkits,
+        auth_config_ids: authConfigIds,
+      });
     } else {
       // Resolve auth configs before creating the server
       const { noAuthApps, authConfigIds } = await splitToolkitsForMcp(client, toolkits);
