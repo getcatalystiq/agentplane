@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { RunStatusBadge } from "@/components/ui/run-status-badge";
 import { PaginationBar, parsePaginationParams } from "@/components/ui/pagination-bar";
