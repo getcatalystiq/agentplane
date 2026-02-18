@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ToolkitMultiselect } from "@/components/toolkit-multiselect";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { AuthScheme, ConnectorStatus } from "@/lib/composio";
 
 interface Props {
@@ -36,6 +37,8 @@ export function ConnectorsManager({ agentId, toolkits: initialToolkits }: Props)
   const [showAdd, setShowAdd] = useState(false);
   const [pendingToolkits, setPendingToolkits] = useState<string[]>(initialToolkits);
   const [applyingToolkits, setApplyingToolkits] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<{ slug: string; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -73,8 +76,15 @@ export function ConnectorsManager({ agentId, toolkits: initialToolkits }: Props)
     }
   }
 
-  async function handleDelete(slug: string) {
-    await patchToolkits(localToolkits.filter((t) => t !== slug));
+  async function handleConfirmDelete() {
+    if (!confirmDelete) return;
+    setDeleting(true);
+    try {
+      await patchToolkits(localToolkits.filter((t) => t !== confirmDelete.slug));
+      setConfirmDelete(null);
+    } finally {
+      setDeleting(false);
+    }
   }
 
   async function handleSaveKey(slug: string) {
@@ -104,6 +114,23 @@ export function ConnectorsManager({ agentId, toolkits: initialToolkits }: Props)
   }
 
   return (
+    <>
+    <Dialog open={!!confirmDelete} onOpenChange={(open) => { if (!open) setConfirmDelete(null); }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Remove Connector</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground mb-4">
+          Remove <span className="font-medium text-foreground">{confirmDelete?.name}</span> from this agent?
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button size="sm" variant="ghost" onClick={() => setConfirmDelete(null)} disabled={deleting}>Cancel</Button>
+          <Button size="sm" variant="destructive" onClick={handleConfirmDelete} disabled={deleting}>
+            {deleting ? "Removing..." : "Remove"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle className="text-base">Connector Configuration</CardTitle>
@@ -147,7 +174,7 @@ export function ConnectorsManager({ agentId, toolkits: initialToolkits }: Props)
                   </Badge>
                   <button
                     type="button"
-                    onClick={() => handleDelete(c.slug)}
+                    onClick={() => setConfirmDelete({ slug: c.slug, name: c.name })}
                     className="text-muted-foreground hover:text-red-500 flex-shrink-0 ml-1 text-base leading-none"
                     title="Remove connector"
                   >
@@ -210,5 +237,6 @@ export function ConnectorsManager({ agentId, toolkits: initialToolkits }: Props)
         )}
       </CardContent>
     </Card>
+    </>
   );
 }
