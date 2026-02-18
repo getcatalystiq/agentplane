@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { query } from "@/db";
+import { PaginationBar, parsePaginationParams } from "@/components/ui/pagination-bar";
+import { query, queryOne } from "@/db";
 import { z } from "zod";
 
 const RunWithContext = z.object({
@@ -24,20 +25,38 @@ const RunWithContext = z.object({
 
 export const dynamic = "force-dynamic";
 
-export default async function RunsPage() {
-  const runs = await query(
-    RunWithContext,
-    `SELECT r.id, r.agent_id, a.name AS agent_name, r.tenant_id, t.name AS tenant_name,
-       r.status, r.prompt, r.cost_usd, r.num_turns, r.duration_ms,
-       r.total_input_tokens, r.total_output_tokens, r.error_type,
-       r.started_at, r.completed_at, r.created_at
-     FROM runs r
-     JOIN agents a ON a.id = r.agent_id
-     JOIN tenants t ON t.id = r.tenant_id
-     ORDER BY r.created_at DESC
-     LIMIT 100`,
-    [],
-  );
+export default async function RunsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string; pageSize?: string }>;
+}) {
+  const { page: pageParam, pageSize: pageSizeParam } = await searchParams;
+  const { page, pageSize, offset } = parsePaginationParams(pageParam, pageSizeParam);
+
+  const [runs, countResult] = await Promise.all([
+    query(
+      RunWithContext,
+      `SELECT r.id, r.agent_id, a.name AS agent_name, r.tenant_id, t.name AS tenant_name,
+         r.status, r.prompt, r.cost_usd, r.num_turns, r.duration_ms,
+         r.total_input_tokens, r.total_output_tokens, r.error_type,
+         r.started_at, r.completed_at, r.created_at
+       FROM runs r
+       JOIN agents a ON a.id = r.agent_id
+       JOIN tenants t ON t.id = r.tenant_id
+       ORDER BY r.created_at DESC
+       LIMIT $1 OFFSET $2`,
+      [pageSize, offset],
+    ),
+    queryOne(
+      z.object({ total: z.number() }),
+      `SELECT COUNT(*)::int AS total FROM runs r
+       JOIN agents a ON a.id = r.agent_id
+       JOIN tenants t ON t.id = r.tenant_id`,
+      [],
+    ),
+  ]);
+
+  const total = countResult?.total ?? 0;
 
   return (
     <div>
@@ -92,6 +111,12 @@ export default async function RunsPage() {
             )}
           </tbody>
         </table>
+        <PaginationBar
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          buildHref={(p, ps) => `/admin/runs?page=${p}&pageSize=${ps}`}
+        />
       </div>
     </div>
   );

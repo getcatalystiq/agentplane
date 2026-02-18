@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { z } from "zod";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { PaginationBar, parsePaginationParams } from "@/components/ui/pagination-bar";
 import { queryOne, query } from "@/db";
 import { TenantRow, AgentRow, RunRow, ApiKeyRow } from "@/lib/validation";
 import { TenantEditForm } from "./edit-form";
@@ -9,30 +11,33 @@ import { ApiKeysSection } from "./api-keys";
 
 export const dynamic = "force-dynamic";
 
-export default async function TenantDetailPage({ params }: { params: Promise<{ tenantId: string }> }) {
+export default async function TenantDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ tenantId: string }>;
+  searchParams: Promise<{ page?: string; pageSize?: string }>;
+}) {
   const { tenantId } = await params;
+  const { page: pageParam, pageSize: pageSizeParam } = await searchParams;
+  const { page, pageSize, offset } = parsePaginationParams(pageParam, pageSizeParam);
 
   const tenant = await queryOne(TenantRow, "SELECT * FROM tenants WHERE id = $1", [tenantId]);
   if (!tenant) notFound();
 
-  const agents = await query(
-    AgentRow,
-    "SELECT * FROM agents WHERE tenant_id = $1 ORDER BY created_at DESC",
-    [tenantId],
-  );
+  const [agents, runs, countResult, apiKeys] = await Promise.all([
+    query(AgentRow, "SELECT * FROM agents WHERE tenant_id = $1 ORDER BY created_at DESC", [tenantId]),
+    query(RunRow, "SELECT * FROM runs WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3", [tenantId, pageSize, offset]),
+    queryOne(z.object({ total: z.number() }), "SELECT COUNT(*)::int AS total FROM runs WHERE tenant_id = $1", [tenantId]),
+    query(
+      ApiKeyRow.omit({ key_hash: true }),
+      `SELECT id, tenant_id, name, key_prefix, scopes, last_used_at, expires_at, revoked_at, created_at
+       FROM api_keys WHERE tenant_id = $1 ORDER BY created_at DESC`,
+      [tenantId],
+    ),
+  ]);
 
-  const recentRuns = await query(
-    RunRow,
-    "SELECT * FROM runs WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 20",
-    [tenantId],
-  );
-
-  const apiKeys = await query(
-    ApiKeyRow.omit({ key_hash: true }),
-    `SELECT id, tenant_id, name, key_prefix, scopes, last_used_at, expires_at, revoked_at, created_at
-     FROM api_keys WHERE tenant_id = $1 ORDER BY created_at DESC`,
-    [tenantId],
-  );
+  const totalRuns = countResult?.total ?? 0;
 
   return (
     <div className="space-y-6">
@@ -73,7 +78,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ t
             <CardTitle className="text-sm font-medium text-muted-foreground">Runs</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{recentRuns.length}</p>
+            <p className="text-2xl font-bold">{totalRuns}</p>
           </CardContent>
         </Card>
       </div>
@@ -116,9 +121,9 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ t
         </div>
       </div>
 
-      {/* Recent runs */}
+      {/* Runs */}
       <div>
-        <h2 className="text-lg font-semibold mb-3">Recent Runs</h2>
+        <h2 className="text-lg font-semibold mb-3">Runs</h2>
         <div className="rounded-lg border border-border">
           <table className="w-full text-sm">
             <thead>
@@ -131,7 +136,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ t
               </tr>
             </thead>
             <tbody>
-              {recentRuns.map((r) => (
+              {runs.map((r) => (
                 <tr key={r.id} className="border-b border-border hover:bg-muted/30">
                   <td className="p-3 font-mono text-xs">
                     <Link href={`/admin/runs/${r.id}`} className="text-primary hover:underline">
@@ -144,11 +149,17 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ t
                   <td className="p-3 text-muted-foreground text-xs">{new Date(r.created_at).toLocaleString()}</td>
                 </tr>
               ))}
-              {recentRuns.length === 0 && (
+              {runs.length === 0 && (
                 <tr><td colSpan={5} className="p-6 text-center text-muted-foreground">No runs</td></tr>
               )}
             </tbody>
           </table>
+          <PaginationBar
+            page={page}
+            pageSize={pageSize}
+            total={totalRuns}
+            buildHref={(p, ps) => `/admin/tenants/${tenantId}?page=${p}&pageSize=${ps}`}
+          />
         </div>
       </div>
     </div>
