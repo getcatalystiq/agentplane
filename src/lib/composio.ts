@@ -23,6 +23,107 @@ export interface ComposioMcpConfig {
 }
 
 /**
+ * For each toolkit, determine whether it is a no-auth app or needs an auth
+ * config. Returns `noAuthApps` (to pass to `mcp.create`) and `authConfigIds`
+ * (one per auth-required toolkit, created lazily).
+ */
+async function splitToolkitsForMcp(
+  client: InstanceType<typeof ComposioClient>,
+  toolkits: string[],
+): Promise<{ noAuthApps: string[]; authConfigIds: string[] }> {
+  const noAuthApps: string[] = [];
+  const authConfigIds: string[] = [];
+
+  await Promise.all(
+    toolkits.map(async (slug) => {
+      const slugLower = slug.toLowerCase();
+      try {
+        // Fetch toolkit metadata to check no_auth flag.
+        // Use the list endpoint since it exposes `no_auth` on each item.
+        const response = await client.toolkits.list({ search: slugLower, limit: 10 });
+        const toolkit = response.items.find((t) => t.slug === slugLower);
+
+        if (toolkit?.no_auth === true) {
+          noAuthApps.push(slugLower);
+          return;
+        }
+
+        // Auth-required: get or create an auth config for this toolkit
+        const authConfigId = await getOrCreateAuthConfig(client, slugLower);
+        if (authConfigId) {
+          authConfigIds.push(authConfigId);
+        } else {
+          // Fallback: treat as no_auth so the toolkit is at least present
+          logger.warn("Could not get auth config, falling back to no_auth_apps", { slug: slugLower });
+          noAuthApps.push(slugLower);
+        }
+      } catch (err) {
+        logger.error("Failed to resolve toolkit auth", {
+          slug: slugLower,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        // Fallback to no_auth so the agent isn't blocked entirely
+        noAuthApps.push(slugLower);
+      }
+    }),
+  );
+
+  return { noAuthApps, authConfigIds };
+}
+
+/**
+ * Get an existing auth config for `slug`, or create one if none exists.
+ * Returns the auth config ID, or null on error.
+ *
+ * If the env var `COMPOSIO_CREDENTIALS_<SLUG_UPPER>` is set to a JSON object
+ * (e.g. `{"api_key":"fca-xxx"}`), it is passed as `shared_credentials` so that
+ * all connected accounts automatically inherit those credentials.
+ */
+async function getOrCreateAuthConfig(
+  client: InstanceType<typeof ComposioClient>,
+  slug: string,
+): Promise<string | null> {
+  try {
+    // Prefer an already-enabled config for this toolkit
+    const existing = await client.authConfigs.list({ toolkit_slug: slug, limit: 10 });
+    const enabled = existing.items.find((c) => c.status === "ENABLED") ?? existing.items[0];
+    if (enabled) {
+      logger.info("Reusing existing auth config", { slug, id: enabled.id });
+      return enabled.id;
+    }
+
+    // Resolve optional shared credentials from env
+    const envKey = `COMPOSIO_CREDENTIALS_${slug.toUpperCase().replace(/-/g, "_")}`;
+    let sharedCredentials: Record<string, unknown> | undefined;
+    const envVal = process.env[envKey];
+    if (envVal) {
+      try {
+        sharedCredentials = JSON.parse(envVal) as Record<string, unknown>;
+      } catch {
+        logger.warn("Invalid JSON in toolkit credentials env var", { envKey });
+      }
+    }
+
+    const result = await client.authConfigs.create({
+      toolkit: { slug },
+      auth_config: {
+        type: "use_composio_managed_auth",
+        ...(sharedCredentials ? { shared_credentials: sharedCredentials } : {}),
+      },
+    });
+
+    logger.info("Created Composio auth config", { slug, id: result.auth_config.id });
+    return result.auth_config.id;
+  } catch (err) {
+    logger.error("Failed to get/create auth config", {
+      slug,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
+}
+
+/**
  * Get or create a Composio MCP server for the given toolkits.
  * If existingServerId is provided, retrieves the existing server and generates
  * a user-specific URL instead of creating a new one.
@@ -46,15 +147,22 @@ export async function getOrCreateComposioMcpServer(
       serverName = server.name;
       logger.info("Composio MCP server retrieved", { user_id: userId, server_id: serverId });
     } else {
+      // Resolve auth configs before creating the server
+      const { noAuthApps, authConfigIds } = await splitToolkitsForMcp(client, toolkits);
+
+      logger.info("Composio toolkit auth split", {
+        user_id: userId,
+        no_auth_apps: noAuthApps,
+        auth_config_ids: authConfigIds,
+      });
+
       // Create a new MCP server with a stable name derived from the user ID.
-      // Using a fixed name (no timestamp suffix) so that if the DB write fails
-      // and we retry, we won't keep creating duplicates.
       const name = `ap-${userId.slice(0, 16)}`;
       const server = await client.mcp.create({
         name,
-        auth_config_ids: [],
+        auth_config_ids: authConfigIds,
         managed_auth_via_composio: true,
-        no_auth_apps: toolkits.map((t) => t.toLowerCase()),
+        no_auth_apps: noAuthApps,
       });
       serverId = server.id;
       serverName = server.name;
@@ -63,6 +171,8 @@ export async function getOrCreateComposioMcpServer(
         toolkits,
         server_id: serverId,
         name: serverName,
+        auth_config_ids: authConfigIds,
+        no_auth_apps: noAuthApps,
       });
     }
 
@@ -75,7 +185,6 @@ export async function getOrCreateComposioMcpServer(
     const fullUrl = urlResponse.user_ids_url?.[0] || urlResponse.mcp_url;
 
     // Split the URL into base URL + API key so the key can be stored encrypted.
-    // Composio embeds the API key as the `apiKey` query parameter.
     const urlObj = new URL(fullUrl);
     const apiKey = urlObj.searchParams.get("apiKey") ?? "";
     urlObj.searchParams.delete("apiKey");
