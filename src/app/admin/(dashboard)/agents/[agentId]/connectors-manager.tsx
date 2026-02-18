@@ -58,12 +58,6 @@ function statusColor(status: string | null) {
   return "text-muted-foreground";
 }
 
-function isExpiringSoon(expiresAt: string | null): boolean {
-  if (!expiresAt) return false;
-  const ms = new Date(expiresAt).getTime() - Date.now();
-  return ms > 0 && ms < 24 * 60 * 60 * 1000;
-}
-
 export function ConnectorsManager({ agentId, toolkits: initialToolkits, composioAllowedTools: initialAllowedTools, hasPlugins }: Props) {
   const router = useRouter();
 
@@ -498,12 +492,7 @@ export function ConnectorsManager({ agentId, toolkits: initialToolkits, composio
                 </div>
 
                 {c.status === "active" ? (
-                  <>
-                    <span className="text-xs font-medium text-green-600">✓ Connected</span>
-                    {isExpiringSoon(c.token_expires_at) && (
-                      <span className="text-xs text-yellow-500">Token expires soon</span>
-                    )}
-                  </>
+                  <span className="text-xs font-medium text-green-600">✓ Connected</span>
                 ) : (
                   <span className={`text-xs ${c.status === "expired" || c.status === "failed" ? "text-red-500" : "text-muted-foreground"}`}>
                     {c.status}
