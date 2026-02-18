@@ -30,8 +30,10 @@ export default async function TenantDetailPage({
     agent_id: z.string(),
     agent_name: z.string(),
     status: z.string(),
+    prompt: z.string(),
     cost_usd: z.coerce.number(),
     num_turns: z.coerce.number(),
+    duration_ms: z.coerce.number(),
     created_at: z.coerce.string(),
   });
 
@@ -39,7 +41,7 @@ export default async function TenantDetailPage({
     query(AgentRow, "SELECT * FROM agents WHERE tenant_id = $1 ORDER BY created_at DESC", [tenantId]),
     query(
       RunWithAgent,
-      `SELECT r.id, r.agent_id, a.name AS agent_name, r.status, r.cost_usd, r.num_turns, r.created_at
+      `SELECT r.id, r.agent_id, a.name AS agent_name, r.status, r.prompt, r.cost_usd, r.num_turns, r.duration_ms, r.created_at
        FROM runs r JOIN agents a ON a.id = r.agent_id
        WHERE r.tenant_id = $1 ORDER BY r.created_at DESC LIMIT $2 OFFSET $3`,
       [tenantId, pageSize, offset],
@@ -147,8 +149,10 @@ export default async function TenantDetailPage({
                 <th className="text-left p-3 font-medium">Run ID</th>
                 <th className="text-left p-3 font-medium">Agent</th>
                 <th className="text-left p-3 font-medium">Status</th>
+                <th className="text-left p-3 font-medium">Prompt</th>
                 <th className="text-right p-3 font-medium">Cost</th>
                 <th className="text-right p-3 font-medium">Turns</th>
+                <th className="text-right p-3 font-medium">Duration</th>
                 <th className="text-left p-3 font-medium">Created</th>
               </tr>
             </thead>
@@ -166,13 +170,19 @@ export default async function TenantDetailPage({
                     </Link>
                   </td>
                   <td className="p-3"><RunStatusBadge status={r.status} /></td>
+                  <td className="p-3 max-w-xs text-muted-foreground text-xs truncate" title={r.prompt}>
+                    {r.prompt.slice(0, 60)}{r.prompt.length > 60 ? "…" : ""}
+                  </td>
                   <td className="p-3 text-right font-mono">${r.cost_usd.toFixed(4)}</td>
                   <td className="p-3 text-right">{r.num_turns}</td>
+                  <td className="p-3 text-right text-muted-foreground text-xs">
+                    {r.duration_ms > 0 ? `${(r.duration_ms / 1000).toFixed(1)}s` : "—"}
+                  </td>
                   <td className="p-3 text-muted-foreground text-xs">{new Date(r.created_at).toLocaleString()}</td>
                 </tr>
               ))}
               {runs.length === 0 && (
-                <tr><td colSpan={6} className="p-6 text-center text-muted-foreground">No runs</td></tr>
+                <tr><td colSpan={8} className="p-6 text-center text-muted-foreground">No runs</td></tr>
               )}
             </tbody>
           </table>
