@@ -86,8 +86,11 @@ export function AgentEditForm({ agent }: { agent: Agent }) {
             <Input type="number" min="1" max="1000" value={maxTurns} onChange={(e) => setMaxTurns(e.target.value)} />
           </div>
           <div className="col-span-1 space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Max Budget (USD)</label>
-            <Input type="number" step="0.01" min="0.01" max="100" value={maxBudget} onChange={(e) => setMaxBudget(e.target.value)} />
+            <label className="text-xs font-medium text-muted-foreground">Max Budget</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
+              <Input type="number" step="0.01" min="0.01" max="100" value={maxBudget} onChange={(e) => setMaxBudget(e.target.value)} className="pl-6" />
+            </div>
           </div>
           <div className="col-span-2 space-y-1">
             <label className="text-xs font-medium text-muted-foreground">Permission Mode</label>
