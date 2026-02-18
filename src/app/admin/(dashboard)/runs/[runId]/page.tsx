@@ -154,27 +154,30 @@ export default async function RunDetailPage({
 
       {/* Raw metadata */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Metadata</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <dl className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
-            <dt className="text-muted-foreground">Run ID</dt>
-            <dd className="font-mono">{run.id}</dd>
-            <dt className="text-muted-foreground">Agent ID</dt>
-            <dd className="font-mono">{run.agent_id}</dd>
-            <dt className="text-muted-foreground">Tenant ID</dt>
-            <dd className="font-mono">{run.tenant_id}</dd>
-            <dt className="text-muted-foreground">Sandbox ID</dt>
-            <dd className="font-mono">{run.sandbox_id || "—"}</dd>
-            <dt className="text-muted-foreground">Started</dt>
-            <dd>{run.started_at ? new Date(run.started_at).toLocaleString() : "—"}</dd>
-            <dt className="text-muted-foreground">Completed</dt>
-            <dd>{run.completed_at ? new Date(run.completed_at).toLocaleString() : "—"}</dd>
-            <dt className="text-muted-foreground">Created</dt>
-            <dd>{new Date(run.created_at).toLocaleString()}</dd>
-          </dl>
-        </CardContent>
+        <details>
+          <summary className="flex items-center justify-between px-6 py-4 cursor-pointer list-none hover:bg-muted/30 transition-colors rounded-xl">
+            <span className="text-base font-semibold">Metadata</span>
+            <span className="text-xs text-muted-foreground details-marker">▼</span>
+          </summary>
+          <div className="px-6 pb-6">
+            <dl className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
+              <dt className="text-muted-foreground">Run ID</dt>
+              <dd className="font-mono">{run.id}</dd>
+              <dt className="text-muted-foreground">Agent ID</dt>
+              <dd className="font-mono">{run.agent_id}</dd>
+              <dt className="text-muted-foreground">Tenant ID</dt>
+              <dd className="font-mono">{run.tenant_id}</dd>
+              <dt className="text-muted-foreground">Sandbox ID</dt>
+              <dd className="font-mono">{run.sandbox_id || "—"}</dd>
+              <dt className="text-muted-foreground">Started</dt>
+              <dd>{run.started_at ? new Date(run.started_at).toLocaleString() : "—"}</dd>
+              <dt className="text-muted-foreground">Completed</dt>
+              <dd>{run.completed_at ? new Date(run.completed_at).toLocaleString() : "—"}</dd>
+              <dt className="text-muted-foreground">Created</dt>
+              <dd>{new Date(run.created_at).toLocaleString()}</dd>
+            </dl>
+          </div>
+        </details>
       </Card>
     </div>
   );
