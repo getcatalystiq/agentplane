@@ -8,7 +8,7 @@ export default function AgentsLoading() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/50">
-              {["Name", "Description", "Tenant", "Model", "Toolkits", "Runs", "Last Run", "Created"].map((h) => (
+              {["Name", "Description", "Tenant", "Model", "Connectors", "Runs", "Last Run", "Created"].map((h) => (
                 <th key={h} className="text-left p-3 font-medium text-muted-foreground">{h}</th>
               ))}
             </tr>

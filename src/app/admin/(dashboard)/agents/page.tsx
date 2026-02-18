@@ -63,7 +63,7 @@ export default async function AgentsPage() {
               <th className="text-left p-3 font-medium">Description</th>
               <th className="text-left p-3 font-medium">Tenant</th>
               <th className="text-left p-3 font-medium">Model</th>
-              <th className="text-left p-3 font-medium">Toolkits</th>
+              <th className="text-left p-3 font-medium">Connectors</th>
               <th className="text-left p-3 font-medium">MCP</th>
               <th className="text-right p-3 font-medium">Runs</th>
               <th className="text-left p-3 font-medium">Last Run</th>
