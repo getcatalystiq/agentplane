@@ -83,14 +83,6 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ ag
             <CardTitle className="text-base">Connectors Server</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2">Toolkits</p>
-              <div className="flex flex-wrap gap-2">
-                {agent.composio_toolkits.map((t) => (
-                  <Badge key={t} variant="secondary">{t}</Badge>
-                ))}
-              </div>
-            </div>
             {agent.composio_mcp_server_id ? (
               <div className="grid grid-cols-2 gap-4">
                 <div>
