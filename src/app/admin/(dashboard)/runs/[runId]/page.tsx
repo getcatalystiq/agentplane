@@ -118,18 +118,6 @@ export default async function RunDetailPage({
         </CardContent>
       </Card>
 
-      {/* Result summary */}
-      {run.result_summary && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Result Summary</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <pre className="whitespace-pre-wrap text-sm text-muted-foreground">{run.result_summary}</pre>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Errors */}
       {run.error_messages.length > 0 && (
         <Card>
@@ -150,7 +138,7 @@ export default async function RunDetailPage({
       )}
 
       {/* Transcript */}
-      <TranscriptViewer transcript={transcript} />
+      <TranscriptViewer transcript={transcript} resultSummary={run.result_summary ?? undefined} />
 
       {/* Raw metadata */}
       <Card>
