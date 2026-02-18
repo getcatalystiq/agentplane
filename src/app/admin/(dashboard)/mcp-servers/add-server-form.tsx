@@ -51,6 +51,8 @@ export function AddMcpServerForm() {
         setError(data?.error?.message ?? `Error ${res.status}`);
         return;
       }
+      // Wait for response body before refreshing to ensure DB write is committed
+      await res.json();
       setOpen(false);
       setForm({ name: "", slug: "", description: "", base_url: "", mcp_endpoint_path: "/mcp", logo_url: "" });
       router.refresh();
