@@ -56,6 +56,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // MCP OAuth callbacks are unauthenticated (redirect from external MCP server)
+  if (/^\/api\/mcp-servers\/[^/]+\/callback$/.test(pathname)) {
+    return NextResponse.next();
+  }
+
   // Check for Authorization header
   const authHeader = request.headers.get("authorization");
   if (!authHeader || !authHeader.startsWith("Bearer ")) {

@@ -176,6 +176,113 @@ export const AgentRowInternal = AgentRow.extend({
 
 export type AgentInternal = z.infer<typeof AgentRowInternal>;
 
+// --- MCP Server Validation ---
+
+const RESERVED_MCP_SLUGS = ["composio"];
+
+export const CreateMcpServerSchema = z.object({
+  name: z.string().min(1).max(100),
+  slug: z
+    .string()
+    .min(1)
+    .max(50)
+    .regex(/^[a-z0-9-]+$/, "Slug must be lowercase alphanumeric with hyphens")
+    .refine((s) => !RESERVED_MCP_SLUGS.includes(s), {
+      message: `Slug cannot be a reserved name (${RESERVED_MCP_SLUGS.join(", ")})`,
+    }),
+  description: z.string().max(500).default(""),
+  logo_url: z.string().url().optional(),
+  base_url: z
+    .string()
+    .url()
+    .refine((url) => url.startsWith("https://"), "Must be HTTPS"),
+  mcp_endpoint_path: z
+    .string()
+    .max(200)
+    .regex(/^\/[a-zA-Z0-9/_-]*$/, "Must be an absolute path")
+    .default("/mcp"),
+});
+
+export type CreateMcpServerInput = z.infer<typeof CreateMcpServerSchema>;
+
+export const UpdateMcpServerSchema = z
+  .object({
+    name: z.string().min(1).max(100),
+    description: z.string().max(500),
+    logo_url: z.string().url().nullable(),
+  })
+  .partial();
+
+export type UpdateMcpServerInput = z.infer<typeof UpdateMcpServerSchema>;
+
+export const UpdateMcpConnectionSchema = z.object({
+  allowed_tools: z.array(z.string().min(1).max(100)),
+});
+
+export type UpdateMcpConnectionInput = z.infer<typeof UpdateMcpConnectionSchema>;
+
+// --- MCP Server DB Row Schemas ---
+
+export const McpServerRow = z.object({
+  id: z.string(),
+  name: z.string(),
+  slug: z.string(),
+  description: z.string(),
+  logo_url: z.string().nullable(),
+  base_url: z.string(),
+  mcp_endpoint_path: z.string(),
+  client_id: z.string().nullable(),
+  oauth_metadata: z
+    .unknown()
+    .transform((v) => (v && typeof v === "object" ? v : null) as Record<string, unknown> | null),
+  created_at: z.coerce.string(),
+  updated_at: z.coerce.string(),
+});
+
+// Internal schema includes sensitive client_secret_enc (never exposed in API)
+export const McpServerRowInternal = McpServerRow.extend({
+  client_secret_enc: z.string().nullable(),
+});
+
+export type McpServer = z.infer<typeof McpServerRow>;
+export type McpServerInternal = z.infer<typeof McpServerRowInternal>;
+
+export const McpConnectionRow = z.object({
+  id: z.string(),
+  tenant_id: z.string(),
+  agent_id: z.string(),
+  mcp_server_id: z.string(),
+  status: z.enum(["initiated", "active", "expired", "failed"]),
+  granted_scopes: z.array(z.string()),
+  allowed_tools: z.array(z.string()),
+  token_expires_at: z.coerce.string().nullable(),
+  created_at: z.coerce.string(),
+  updated_at: z.coerce.string(),
+});
+
+// Internal schema includes sensitive token fields (never exposed in API)
+export const McpConnectionRowInternal = McpConnectionRow.extend({
+  access_token_enc: z.string().nullable(),
+  refresh_token_enc: z.string().nullable(),
+  code_verifier_enc: z.string().nullable(),
+  oauth_state: z.string().nullable(),
+});
+
+export type McpConnection = z.infer<typeof McpConnectionRow>;
+export type McpConnectionInternal = z.infer<typeof McpConnectionRowInternal>;
+
+// OAuthMetadata Zod schema for strict parsing of cached metadata
+export const OAuthMetadataSchema = z.object({
+  issuer: z.string(),
+  authorization_endpoint: z.string().url(),
+  token_endpoint: z.string().url(),
+  registration_endpoint: z.string().url().optional(),
+  scopes_supported: z.array(z.string()).optional(),
+  response_types_supported: z.array(z.string()),
+  grant_types_supported: z.array(z.string()).optional(),
+  code_challenge_methods_supported: z.array(z.string()).optional(),
+});
+
 export const RunRow = z.object({
   id: z.string(),
   agent_id: z.string(),
