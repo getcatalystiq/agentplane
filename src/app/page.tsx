@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Zap, Shield, Globe, Terminal, Layers, Clock } from "lucide-react";
+import { ArrowRight, Zap, Shield, Globe, Terminal, Layers, Clock, Github } from "lucide-react";
 
 function Nav() {
   return (
@@ -11,17 +11,19 @@ function Nav() {
           <span className="text-[15px] font-semibold tracking-tight text-white">AgentPlane</span>
         </Link>
         <div className="flex items-center gap-6">
-          <Link href="/docs" className="text-sm text-[hsl(240,5%,65%)] transition-colors hover:text-white">
-            Docs
-          </Link>
-          <Link href="/admin" className="text-sm text-[hsl(240,5%,65%)] transition-colors hover:text-white">
-            Dashboard
+          <Link
+            href="https://github.com/getcatalystiq/agentplane"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[hsl(240,5%,65%)] transition-colors hover:text-white"
+          >
+            <Github className="h-5 w-5" />
           </Link>
           <Link
-            href="/docs"
+            href="/admin"
             className="inline-flex h-9 items-center gap-2 rounded-lg bg-white px-4 text-sm font-medium text-[hsl(240,10%,3.9%)] transition-all hover:bg-white/90"
           >
-            Get Started
+            Dashboard
           </Link>
         </div>
       </div>
@@ -67,7 +69,7 @@ function Hero() {
 
         {/* Heading */}
         <h1 className="text-5xl font-bold leading-[1.08] tracking-tight text-white sm:text-7xl">
-          Claude agents{" "}
+          Claude Agents{" "}
           <br className="hidden sm:block" />
           <span className="bg-gradient-to-r from-white via-white/80 to-white/50 bg-clip-text text-transparent">
             as an API
@@ -83,17 +85,20 @@ function Hero() {
         {/* CTAs */}
         <div className="mt-10 flex items-center justify-center gap-4">
           <Link
-            href="/docs"
+            href="/admin"
             className="group inline-flex h-11 items-center gap-2 rounded-lg bg-white px-6 text-sm font-medium text-[hsl(240,10%,3.9%)] transition-all hover:bg-white/90"
           >
-            Start building
+            Dashboard
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
           </Link>
           <Link
-            href="/admin"
+            href="https://github.com/getcatalystiq/agentplane"
+            target="_blank"
+            rel="noopener noreferrer"
             className="inline-flex h-11 items-center gap-2 rounded-lg border border-white/[0.12] bg-white/[0.03] px-6 text-sm font-medium text-white transition-all hover:border-white/[0.2] hover:bg-white/[0.06]"
           >
-            View dashboard
+            <Github className="h-4 w-4" />
+            GitHub
           </Link>
         </div>
 
@@ -333,10 +338,10 @@ function CTA() {
         </p>
         <div className="mt-10 flex items-center justify-center gap-4">
           <Link
-            href="/docs"
+            href="/admin"
             className="group inline-flex h-12 items-center gap-2 rounded-lg bg-white px-8 text-sm font-medium text-[hsl(240,10%,3.9%)] transition-all hover:bg-white/90"
           >
-            Get your API key
+            Go to Dashboard
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
           </Link>
         </div>
@@ -354,8 +359,8 @@ function Footer() {
           <span className="text-xs text-[hsl(240,5%,35%)]">AgentPlane</span>
         </div>
         <div className="flex items-center gap-6">
-          <Link href="/docs" className="text-xs text-[hsl(240,5%,35%)] hover:text-[hsl(240,5%,65%)]">
-            Docs
+          <Link href="https://github.com/getcatalystiq/agentplane" target="_blank" rel="noopener noreferrer" className="text-xs text-[hsl(240,5%,35%)] hover:text-[hsl(240,5%,65%)]">
+            GitHub
           </Link>
           <Link href="/api/health" className="text-xs text-[hsl(240,5%,35%)] hover:text-[hsl(240,5%,65%)]">
             Status
