@@ -106,18 +106,6 @@ export default async function RunDetailPage({
         </Card>
       </div>
 
-      {/* Prompt */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Prompt</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <pre className="whitespace-pre-wrap text-sm text-muted-foreground font-mono bg-muted/50 rounded-md p-4">
-            {run.prompt}
-          </pre>
-        </CardContent>
-      </Card>
-
       {/* Errors */}
       {run.error_messages.length > 0 && (
         <Card>
@@ -138,7 +126,7 @@ export default async function RunDetailPage({
       )}
 
       {/* Transcript */}
-      <TranscriptViewer transcript={transcript} resultSummary={run.result_summary ?? undefined} />
+      <TranscriptViewer transcript={transcript} prompt={run.prompt} resultSummary={run.result_summary ?? undefined} />
 
       {/* Raw metadata */}
       <Card>

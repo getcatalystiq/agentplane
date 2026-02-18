@@ -107,21 +107,8 @@ function buildConversation(events: TranscriptEvent[]): ConversationItem[] {
   return items;
 }
 
-export function TranscriptViewer({ transcript, resultSummary }: { transcript: TranscriptEvent[]; resultSummary?: string }) {
+export function TranscriptViewer({ transcript, prompt, resultSummary }: { transcript: TranscriptEvent[]; prompt?: string; resultSummary?: string }) {
   const conversation = useMemo(() => buildConversation(transcript), [transcript]);
-
-  if (transcript.length === 0) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Transcript</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">No transcript available</p>
-        </CardContent>
-      </Card>
-    );
-  }
 
   return (
     <Card>
@@ -133,8 +120,18 @@ export function TranscriptViewer({ transcript, resultSummary }: { transcript: Tr
           </span>
         )}
       </CardHeader>
-      <CardContent>
-        <ConversationView items={conversation} />
+      <CardContent className="space-y-3">
+        {prompt && (
+          <div className="rounded-md border border-border bg-muted/20 px-4 py-3">
+            <div className="text-xs font-medium text-muted-foreground mb-1">Prompt</div>
+            <pre className="text-xs font-mono whitespace-pre-wrap">{prompt}</pre>
+          </div>
+        )}
+        {transcript.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No transcript available</p>
+        ) : (
+          <ConversationView items={conversation} />
+        )}
       </CardContent>
     </Card>
   );
