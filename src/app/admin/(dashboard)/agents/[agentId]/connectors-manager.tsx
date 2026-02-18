@@ -307,7 +307,7 @@ export function ConnectorsManager({ agentId, toolkits: initialToolkits, composio
           <div className="mb-4 space-y-3">
             {/* Composio toolkit picker */}
             <div>
-              <p className="text-xs font-medium text-muted-foreground mb-1.5">Composio Toolkits</p>
+              <p className="text-xs font-medium text-muted-foreground mb-1.5">Composio Connectors</p>
               <div className="flex items-start gap-2">
                 <div className="flex-1">
                   <ToolkitMultiselect value={pendingToolkits} onChange={setPendingToolkits} />
