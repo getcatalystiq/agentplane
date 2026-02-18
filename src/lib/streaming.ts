@@ -98,9 +98,7 @@ export function createNdjsonStream(options: StreamOptions): ReadableStream<Uint8
 export function ndjsonHeaders(): HeadersInit {
   return {
     "Content-Type": "application/x-ndjson",
-    "Transfer-Encoding": "chunked",
     "Cache-Control": "no-cache, no-transform",
     "X-Accel-Buffering": "no",
-    Connection: "keep-alive",
   };
 }
