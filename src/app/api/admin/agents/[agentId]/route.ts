@@ -46,14 +46,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     ["permission_mode", "permission_mode"],
     ["max_turns", "max_turns"],
     ["max_budget_usd", "max_budget_usd"],
-    ["composio_toolkits", "composio_toolkits", (v) => {
-      // Clear MCP cache when toolkits change
-      sets.push(`composio_mcp_server_id = NULL`);
-      sets.push(`composio_mcp_server_name = NULL`);
-      sets.push(`composio_mcp_url = NULL`);
-      sets.push(`composio_mcp_api_key_enc = NULL`);
-      return v;
-    }],
+    ["composio_toolkits", "composio_toolkits"],
     ["skills", "skills", (v) => JSON.stringify(v)],
   ];
 
