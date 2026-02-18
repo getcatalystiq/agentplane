@@ -106,7 +106,7 @@ export default async function RunDetailPage({
             <CardTitle className="text-sm font-medium text-muted-foreground">Tokens</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold font-mono">
+            <p className="text-2xl font-bold">
               {(run.total_input_tokens + run.total_output_tokens).toLocaleString()}
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
