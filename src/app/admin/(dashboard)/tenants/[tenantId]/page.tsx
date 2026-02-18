@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { PaginationBar, parsePaginationParams } from "@/components/ui/pagination-bar";
 import { queryOne, query } from "@/db";
-import { TenantRow, AgentRow, RunRow, ApiKeyRow } from "@/lib/validation";
+import { TenantRow, AgentRow, ApiKeyRow } from "@/lib/validation";
 import { TenantEditForm } from "./edit-form";
 import { ApiKeysSection } from "./api-keys";
 
@@ -25,9 +25,25 @@ export default async function TenantDetailPage({
   const tenant = await queryOne(TenantRow, "SELECT * FROM tenants WHERE id = $1", [tenantId]);
   if (!tenant) notFound();
 
+  const RunWithAgent = z.object({
+    id: z.string(),
+    agent_id: z.string(),
+    agent_name: z.string(),
+    status: z.string(),
+    cost_usd: z.coerce.number(),
+    num_turns: z.coerce.number(),
+    created_at: z.coerce.string(),
+  });
+
   const [agents, runs, countResult, apiKeys] = await Promise.all([
     query(AgentRow, "SELECT * FROM agents WHERE tenant_id = $1 ORDER BY created_at DESC", [tenantId]),
-    query(RunRow, "SELECT * FROM runs WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3", [tenantId, pageSize, offset]),
+    query(
+      RunWithAgent,
+      `SELECT r.id, r.agent_id, a.name AS agent_name, r.status, r.cost_usd, r.num_turns, r.created_at
+       FROM runs r JOIN agents a ON a.id = r.agent_id
+       WHERE r.tenant_id = $1 ORDER BY r.created_at DESC LIMIT $2 OFFSET $3`,
+      [tenantId, pageSize, offset],
+    ),
     queryOne(z.object({ total: z.number() }), "SELECT COUNT(*)::int AS total FROM runs WHERE tenant_id = $1", [tenantId]),
     query(
       ApiKeyRow.omit({ key_hash: true }),
@@ -129,6 +145,7 @@ export default async function TenantDetailPage({
             <thead>
               <tr className="border-b border-border bg-muted/50">
                 <th className="text-left p-3 font-medium">Run ID</th>
+                <th className="text-left p-3 font-medium">Agent</th>
                 <th className="text-left p-3 font-medium">Status</th>
                 <th className="text-right p-3 font-medium">Cost</th>
                 <th className="text-right p-3 font-medium">Turns</th>
@@ -143,6 +160,11 @@ export default async function TenantDetailPage({
                       {r.id.slice(0, 8)}...
                     </Link>
                   </td>
+                  <td className="p-3 text-xs">
+                    <Link href={`/admin/agents/${r.agent_id}`} className="text-primary hover:underline">
+                      {r.agent_name}
+                    </Link>
+                  </td>
                   <td className="p-3"><RunStatusBadge status={r.status} /></td>
                   <td className="p-3 text-right font-mono">${r.cost_usd.toFixed(4)}</td>
                   <td className="p-3 text-right">{r.num_turns}</td>
@@ -150,7 +172,7 @@ export default async function TenantDetailPage({
                 </tr>
               ))}
               {runs.length === 0 && (
-                <tr><td colSpan={5} className="p-6 text-center text-muted-foreground">No runs</td></tr>
+                <tr><td colSpan={6} className="p-6 text-center text-muted-foreground">No runs</td></tr>
               )}
             </tbody>
           </table>
