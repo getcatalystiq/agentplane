@@ -1,6 +1,6 @@
 import ComposioClient from "@composio/client";
 import { logger } from "./logger";
-import type { TenantConnectorInfo } from "./types";
+import type { AuthScheme, TenantConnectorInfo } from "./types";
 
 let _client: InstanceType<typeof ComposioClient> | null = null;
 
@@ -247,7 +247,7 @@ export async function getOrCreateComposioMcpServer(
 
 // ─── Connector management (admin) ─────────────────────────────────────────────
 
-export type AuthScheme = "OAUTH2" | "OAUTH1" | "API_KEY" | "NO_AUTH" | "OTHER";
+export type { AuthScheme };
 
 export interface ConnectorStatus {
   slug: string;
@@ -459,58 +459,6 @@ export async function initiateOAuthConnector(
 }
 
 /**
- * Initiate an OAuth connection for a toolkit via Composio REST API.
- */
-export async function initiateOAuthConnection(
-  userId: string,
-  toolkit: string,
-  callbackUrl: string,
-): Promise<{ redirectUrl: string; connectionId: string } | null> {
-  const apiKey = process.env.COMPOSIO_API_KEY;
-  if (!apiKey) return null;
-
-  try {
-    const response = await fetch(
-      "https://backend.composio.dev/api/v1/connectedAccounts",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": apiKey,
-        },
-        body: JSON.stringify({
-          entityId: userId,
-          appName: toolkit.toLowerCase(),
-          redirectUri: callbackUrl,
-        }),
-      },
-    );
-
-    if (!response.ok) {
-      const text = await response.text();
-      logger.error("Composio OAuth initiation failed", {
-        status: response.status,
-        body: text.slice(0, 500),
-        toolkit,
-      });
-      return null;
-    }
-
-    const data = await response.json();
-    return {
-      redirectUrl: data.redirectUrl,
-      connectionId: data.connectedAccountId,
-    };
-  } catch (err) {
-    logger.error("Composio OAuth initiation error", {
-      toolkit,
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return null;
-  }
-}
-
-/**
  * When toolkits are removed from an agent, clean up the Composio resources for
  * the given tenant:
  * 1. Delete connected accounts that belong to this tenant for each removed toolkit.
@@ -569,33 +517,4 @@ export async function removeToolkitConnections(
       }
     }),
   );
-}
-
-/**
- * Check the status of a connected account.
- */
-export async function getConnectionStatus(
-  connectionId: string,
-): Promise<{ status: string; toolkit: string } | null> {
-  const apiKey = process.env.COMPOSIO_API_KEY;
-  if (!apiKey) return null;
-
-  try {
-    const response = await fetch(
-      `https://backend.composio.dev/api/v1/connectedAccounts/${connectionId}`,
-      {
-        headers: { "x-api-key": apiKey },
-      },
-    );
-
-    if (!response.ok) return null;
-
-    const data = await response.json();
-    return {
-      status: data.status,
-      toolkit: data.appUniqueId,
-    };
-  } catch {
-    return null;
-  }
 }
