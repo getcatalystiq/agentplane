@@ -153,9 +153,9 @@ const features = [
   },
   {
     icon: Zap,
-    title: "Streaming SSE",
+    title: "Skills",
     description:
-      "Real-time events over NDJSON. Watch tool calls, assistant messages, and results as they happen.",
+      "Inject custom skills into agents as files before execution. Extend agent capabilities without changing code.",
   },
   {
     icon: Layers,
