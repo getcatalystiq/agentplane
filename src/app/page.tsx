@@ -78,7 +78,7 @@ function Hero() {
 
         {/* Subheading */}
         <p className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-[hsl(240,5%,55%)]">
-          Run Claude Code in isolated sandboxes. Multi-tenant, streaming, and ready for production.
+          Run Claude Agent SDK in isolated sandboxes. Multi-tenant, streaming, and ready for production.
           One POST request to launch an agent.
         </p>
 
@@ -141,9 +141,9 @@ function Hero() {
 const features = [
   {
     icon: Terminal,
-    title: "Claude Code inside",
+    title: "Claude Agent SDK inside",
     description:
-      "Full Claude Code agent with tool use, file editing, and bash. Not a wrapper — the real thing running in a sandbox.",
+      "Full Claude Agent SDK agent with tool use, file editing, and bash. Not a wrapper — the real thing running in a sandbox.",
   },
   {
     icon: Shield,
@@ -302,7 +302,7 @@ function Architecture() {
             <div className="ml-3.5 border-l border-white/[0.06] py-1 pl-7 text-[hsl(240,5%,30%)]">|</div>
             <div className="flex items-center gap-3">
               <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-white/[0.06] text-xs text-white">2</span>
-              <span>Vercel Sandbox created with Claude Code + MCP servers</span>
+              <span>Vercel Sandbox created with Claude Agent SDK + MCP servers</span>
             </div>
             <div className="ml-3.5 border-l border-white/[0.06] py-1 pl-7 text-[hsl(240,5%,30%)]">|</div>
             <div className="flex items-center gap-3">
@@ -334,7 +334,7 @@ function CTA() {
         </h2>
         <p className="mx-auto mt-5 max-w-lg text-[hsl(240,5%,50%)]">
           Stop building sandbox orchestration from scratch. AgentPlane gives you
-          a production-ready API for running Claude Code agents.
+          a production-ready API for running Claude Agent SDK agents.
         </p>
         <div className="mt-10 flex items-center justify-center gap-4">
           <Link
