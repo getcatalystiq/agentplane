@@ -277,7 +277,7 @@ export function ConnectorsManager({ agentId, toolkits: initialToolkits, composio
     <Dialog open={!!confirmMcpDisconnect} onOpenChange={(open) => { if (!open) setConfirmMcpDisconnect(null); }}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Disconnect MCP Server</DialogTitle>
+          <DialogTitle>Disconnect Custom MCP Server</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground mb-4">
           Disconnect <span className="font-medium text-foreground">{confirmMcpDisconnect?.server_name}</span> from this agent?
@@ -320,10 +320,10 @@ export function ConnectorsManager({ agentId, toolkits: initialToolkits, composio
 
             {/* MCP servers picker */}
             <div className="rounded-lg border border-border p-3">
-              <p className="text-xs font-medium text-muted-foreground mb-2">MCP Servers</p>
+              <p className="text-xs font-medium text-muted-foreground mb-2">Custom MCP Servers</p>
               {availableMcpServers.length === 0 ? (
                 <p className="text-xs text-muted-foreground">
-                  {mcpServers.length === 0 ? "No MCP servers registered." : "All servers are already connected."}
+                  {mcpServers.length === 0 ? "No custom MCP servers registered." : "All servers are already connected."}
                 </p>
               ) : (
                 <div className="space-y-2">
@@ -367,6 +367,7 @@ export function ConnectorsManager({ agentId, toolkits: initialToolkits, composio
         ) : isEmpty ? (
           <p className="text-sm text-muted-foreground">No connectors added. Click Add to configure connectors.</p>
         ) : (
+          <>
           <div className="grid grid-cols-3 gap-3">
             {/* Composio connector cards */}
             {connectors.map((c) => (
@@ -455,7 +456,9 @@ export function ConnectorsManager({ agentId, toolkits: initialToolkits, composio
               </div>
             ))}
 
-            {/* MCP connection cards */}
+          </div>
+          {mcpConnections.length > 0 && (
+          <div className="grid grid-cols-4 gap-3 mt-3">
             {mcpConnections.map((c) => (
               <div key={`mcp-${c.id}`} className="rounded-lg border border-border p-3 flex flex-col gap-2">
                 <div className="flex items-center gap-2">
@@ -516,6 +519,8 @@ export function ConnectorsManager({ agentId, toolkits: initialToolkits, composio
               </div>
             ))}
           </div>
+          )}
+          </>
         )}
       </CardContent>
     </Card>
