@@ -13,8 +13,8 @@ export const POST = withErrorHandler(async (request: NextRequest, context) => {
 
   await getAgentForTenant(agentId, auth.tenantId);
 
-  const callbackBaseUrl = process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
+  const callbackBaseUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
     : (process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000");
 
   const result = await initiateOAuth({

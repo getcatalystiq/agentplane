@@ -16,8 +16,8 @@ export const POST = withErrorHandler(async (_request: NextRequest, context) => {
   const agent = await queryOne(AgentRow, "SELECT * FROM agents WHERE id = $1", [agentId]);
   if (!agent) throw new NotFoundError("Agent not found");
 
-  const callbackBaseUrl = process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
+  const callbackBaseUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
     : (process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000");
 
   const result = await initiateOAuth({

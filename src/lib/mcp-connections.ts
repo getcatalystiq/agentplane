@@ -535,8 +535,8 @@ export async function updateAllowedTools(
 
 function getCallbackBaseUrl(): string {
   // In production, use the deployed URL. In dev, use localhost.
-  if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}`;
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
   }
   return process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
 }

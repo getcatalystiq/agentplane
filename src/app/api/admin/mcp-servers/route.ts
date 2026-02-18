@@ -19,8 +19,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   await validatePublicUrl(input.base_url);
 
   // Determine callback base URL
-  const callbackBaseUrl = process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
+  const callbackBaseUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
     : (process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000");
 
   const server = await registerMcpServer(
