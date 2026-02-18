@@ -69,7 +69,7 @@ export const PATCH = withErrorHandler(async (request: NextRequest, context) => {
 export const DELETE = withErrorHandler(async (_request: NextRequest, context) => {
   const { mcpServerId } = await (context as RouteContext).params;
 
-  // Delete all connections first (CASCADE handles this in DB, but be explicit)
+  // Delete all connections first, then the server
   await execute("DELETE FROM mcp_connections WHERE mcp_server_id = $1", [mcpServerId]);
 
   const { rowCount } = await execute("DELETE FROM mcp_servers WHERE id = $1", [mcpServerId]);
