@@ -326,25 +326,23 @@ export function ConnectorsManager({ agentId, toolkits: initialToolkits, composio
                   {mcpServers.length === 0 ? "No custom MCP servers registered." : "All servers are already connected."}
                 </p>
               ) : (
-                <div className="space-y-2">
+                <div className="grid grid-cols-4 gap-2">
                   {availableMcpServers.map((s) => (
-                    <div key={s.id} className="flex items-center justify-between gap-2 p-2 rounded border border-border">
+                    <div key={s.id} className="flex flex-col gap-2 p-2 rounded border border-border">
                       <div className="flex items-center gap-2 min-w-0">
                         {s.logo_url && (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={s.logo_url} alt="" className="w-5 h-5 rounded-sm object-contain flex-shrink-0" />
                         )}
-                        <div className="min-w-0">
-                          <span className="text-sm font-medium">{s.name}</span>
-                          {s.description && (
-                            <p className="text-xs text-muted-foreground truncate">{s.description}</p>
-                          )}
-                        </div>
+                        <span className="text-sm font-medium truncate">{s.name}</span>
                       </div>
+                      {s.description && (
+                        <p className="text-xs text-muted-foreground truncate">{s.description}</p>
+                      )}
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-7 text-xs flex-shrink-0"
+                        className="h-7 text-xs mt-auto"
                         disabled={mcpConnecting === s.id}
                         onClick={() => handleMcpConnect(s.id)}
                       >
