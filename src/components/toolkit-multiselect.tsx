@@ -17,12 +17,11 @@ export function ToolkitMultiselect({ value, onChange }: Props) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [toolkits, setToolkits] = useState<ToolkitOption[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setLoading(true);
     fetch("/api/admin/composio/toolkits")
       .then((r) => r.json())
       .then((data) => setToolkits(data.data ?? []))

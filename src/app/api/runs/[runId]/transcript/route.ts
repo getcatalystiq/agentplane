@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { authenticateApiKey } from "@/lib/auth";
-import { withErrorHandler, jsonResponse } from "@/lib/api";
+import { withErrorHandler } from "@/lib/api";
 import { getRun } from "@/lib/runs";
 import { NotFoundError } from "@/lib/errors";
 
