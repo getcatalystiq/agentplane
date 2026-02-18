@@ -1,27 +1,17 @@
 import { NextRequest } from "next/server";
 import { authenticateApiKey } from "@/lib/auth";
 import { withErrorHandler, jsonResponse } from "@/lib/api";
-import { UpdateAgentSchema, AgentRow } from "@/lib/validation";
-import { queryOne, execute } from "@/db";
-import { NotFoundError } from "@/lib/errors";
+import { UpdateAgentSchema } from "@/lib/validation";
+import { execute } from "@/db";
+import { getAgentForTenant } from "@/lib/agents";
 import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
-async function getAgent(agentId: string, tenantId: string) {
-  const agent = await queryOne(
-    AgentRow,
-    "SELECT * FROM agents WHERE id = $1 AND tenant_id = $2",
-    [agentId, tenantId],
-  );
-  if (!agent) throw new NotFoundError("Agent not found");
-  return agent;
-}
-
 export const GET = withErrorHandler(async (request: NextRequest, context) => {
   const auth = await authenticateApiKey(request.headers.get("authorization"));
   const { agentId } = await context!.params;
-  const agent = await getAgent(agentId, auth.tenantId);
+  const agent = await getAgentForTenant(agentId, auth.tenantId);
   return jsonResponse(agent);
 });
 
@@ -30,7 +20,7 @@ export const PUT = withErrorHandler(async (request: NextRequest, context) => {
   const { agentId } = await context!.params;
 
   // Verify agent exists
-  await getAgent(agentId, auth.tenantId);
+  await getAgentForTenant(agentId, auth.tenantId);
 
   const body = await request.json();
   const input = UpdateAgentSchema.parse(body);
@@ -61,6 +51,13 @@ export const PUT = withErrorHandler(async (request: NextRequest, context) => {
     }
   }
 
+  // Skills need a JSONB cast
+  if (input.skills !== undefined) {
+    setClauses.push(`skills = $${paramIdx}::jsonb`);
+    params.push(JSON.stringify(input.skills));
+    paramIdx++;
+  }
+
   // Note: composio_mcp_server_id is intentionally kept — the server is
   // stable and will be updated with the new toolkit list on the next run.
 
@@ -71,7 +68,7 @@ export const PUT = withErrorHandler(async (request: NextRequest, context) => {
     params,
   );
 
-  const updated = await getAgent(agentId, auth.tenantId);
+  const updated = await getAgentForTenant(agentId, auth.tenantId);
   logger.info("Agent updated", { tenant_id: auth.tenantId, agent_id: agentId });
   return jsonResponse(updated);
 });
@@ -80,7 +77,7 @@ export const DELETE = withErrorHandler(async (request: NextRequest, context) => 
   const auth = await authenticateApiKey(request.headers.get("authorization"));
   const { agentId } = await context!.params;
 
-  await getAgent(agentId, auth.tenantId);
+  await getAgentForTenant(agentId, auth.tenantId);
   await execute(
     "DELETE FROM agents WHERE id = $1 AND tenant_id = $2",
     [agentId, auth.tenantId],

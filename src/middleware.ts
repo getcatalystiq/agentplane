@@ -51,6 +51,11 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // OAuth callbacks are unauthenticated (redirect from external provider)
+  if (/^\/api\/agents\/[^/]+\/connectors\/[^/]+\/callback$/.test(pathname)) {
+    return NextResponse.next();
+  }
+
   // Check for Authorization header
   const authHeader = request.headers.get("authorization");
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
