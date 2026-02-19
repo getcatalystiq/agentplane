@@ -290,7 +290,7 @@ export function ConnectorsManager({ agentId, toolkits: initialToolkits, composio
     <Dialog open={!!confirmMcpDisconnect} onOpenChange={(open) => { if (!open) setConfirmMcpDisconnect(null); }}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Disconnect Custom Connector</DialogTitle>
+          <DialogTitle>Disconnect Connector</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground mb-4">
           Disconnect <span className="font-medium text-foreground">{confirmMcpDisconnect?.server_name}</span> from this agent?
@@ -318,54 +318,43 @@ export function ConnectorsManager({ agentId, toolkits: initialToolkits, composio
       <CardContent>
         {showAdd && (
           <div className="mb-4 space-y-3">
-            {/* Composio toolkit picker */}
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-1.5">Composio Connectors</p>
-              <div className="flex items-start gap-2">
-                <div className="flex-1">
-                  <ToolkitMultiselect value={pendingToolkits} onChange={setPendingToolkits} />
-                </div>
-                <Button size="sm" onClick={handleApplyAdd} disabled={applyingToolkits}>
-                  {applyingToolkits ? "Saving..." : "Apply"}
-                </Button>
+            <div className="flex items-start gap-2">
+              <div className="flex-1">
+                <ToolkitMultiselect value={pendingToolkits} onChange={setPendingToolkits} />
               </div>
+              <Button size="sm" onClick={handleApplyAdd} disabled={applyingToolkits}>
+                {applyingToolkits ? "Saving..." : "Apply"}
+              </Button>
             </div>
 
-            {/* MCP servers picker */}
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-1.5">Custom Connectors</p>
-              {availableMcpServers.length === 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  {mcpServers.length === 0 ? "No custom connectors registered." : "All servers are already connected."}
-                </p>
-              ) : (
-                <div className="grid grid-cols-4 gap-2">
-                  {availableMcpServers.map((s) => (
-                    <div key={s.id} className="flex flex-col gap-2 p-2 rounded border border-border">
-                      <div className="flex items-center gap-2 min-w-0">
-                        {s.logo_url && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={s.logo_url} alt="" className="w-5 h-5 rounded-sm object-contain flex-shrink-0" />
-                        )}
-                        <span className="text-sm font-medium truncate">{s.name}</span>
-                      </div>
-                      {s.description && (
-                        <p className="text-xs text-muted-foreground truncate">{s.description}</p>
+            {availableMcpServers.length > 0 && (
+              <div className="grid grid-cols-4 gap-2">
+                {availableMcpServers.map((s) => (
+                  <div key={s.id} className="flex flex-col gap-2 p-2 rounded border border-border">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {s.logo_url && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={s.logo_url} alt="" className="w-5 h-5 rounded-sm object-contain flex-shrink-0" />
                       )}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs mt-auto"
-                        disabled={mcpConnecting === s.id}
-                        onClick={() => handleMcpConnect(s.id)}
-                      >
-                        {mcpConnecting === s.id ? "Connecting..." : "Connect"}
-                      </Button>
+                      <span className="text-sm font-medium truncate">{s.name}</span>
+                      <Badge variant="outline" className="text-xs flex-shrink-0 ml-auto">{s.slug}</Badge>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                    {s.description && (
+                      <p className="text-xs text-muted-foreground truncate">{s.description}</p>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs mt-auto"
+                      disabled={mcpConnecting === s.id}
+                      onClick={() => handleMcpConnect(s.id)}
+                    >
+                      {mcpConnecting === s.id ? "Connecting..." : "Connect"}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div className="flex justify-end">
               <Button size="sm" variant="ghost" onClick={() => setShowAdd(false)}>Close</Button>
@@ -467,9 +456,7 @@ export function ConnectorsManager({ agentId, toolkits: initialToolkits, composio
               </div>
             ))}
 
-          </div>
-          {mcpConnections.length > 0 && (
-          <div className="grid grid-cols-4 gap-3 mt-3">
+            {/* MCP connector cards */}
             {mcpConnections.map((c) => (
               <div key={`mcp-${c.id}`} className="rounded-lg border border-border p-3 flex flex-col gap-2">
                 <div className="flex items-center gap-2">
@@ -479,7 +466,7 @@ export function ConnectorsManager({ agentId, toolkits: initialToolkits, composio
                   )}
                   <span className="text-sm font-medium truncate flex-1">{c.server_name}</span>
                   <Badge variant="outline" className="text-xs flex-shrink-0">
-                    OAUTH
+                    {c.server_slug}
                   </Badge>
                   <button
                     type="button"
@@ -525,7 +512,6 @@ export function ConnectorsManager({ agentId, toolkits: initialToolkits, composio
               </div>
             ))}
           </div>
-          )}
           </>
         )}
 

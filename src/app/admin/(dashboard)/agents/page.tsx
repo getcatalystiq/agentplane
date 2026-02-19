@@ -20,9 +20,8 @@ const AgentWithTenant = z.object({
   created_at: z.coerce.string(),
   run_count: z.coerce.number(),
   last_run_at: z.coerce.string().nullable(),
-  mcp_total: z.coerce.number(),
-  mcp_active: z.coerce.number(),
-  mcp_unhealthy: z.coerce.number(),
+  mcp_active_slugs: z.array(z.string()),
+  mcp_unhealthy_slugs: z.array(z.string()),
 });
 
 export const dynamic = "force-dynamic";
@@ -35,13 +34,13 @@ export default async function AgentsPage() {
        a.permission_mode, a.composio_toolkits, a.max_turns, a.max_budget_usd, a.created_at,
        COUNT(DISTINCT r.id)::int AS run_count,
        MAX(r.created_at) AS last_run_at,
-       COUNT(DISTINCT mc.id)::int AS mcp_total,
-       COUNT(DISTINCT mc.id) FILTER (WHERE mc.status = 'active')::int AS mcp_active,
-       COUNT(DISTINCT mc.id) FILTER (WHERE mc.status IN ('expired', 'failed'))::int AS mcp_unhealthy
+       COALESCE(array_agg(DISTINCT ms.slug) FILTER (WHERE ms.slug IS NOT NULL AND mc.status = 'active'), '{}') AS mcp_active_slugs,
+       COALESCE(array_agg(DISTINCT ms.slug) FILTER (WHERE ms.slug IS NOT NULL AND mc.status IN ('expired', 'failed')), '{}') AS mcp_unhealthy_slugs
      FROM agents a
      JOIN tenants t ON t.id = a.tenant_id
      LEFT JOIN runs r ON r.agent_id = a.id
      LEFT JOIN mcp_connections mc ON mc.agent_id = a.id
+     LEFT JOIN mcp_servers ms ON ms.id = mc.mcp_server_id
      GROUP BY a.id, t.name
      ORDER BY a.created_at DESC`,
     [],
@@ -64,7 +63,6 @@ export default async function AgentsPage() {
               <th className="text-left p-3 font-medium">Tenant</th>
               <th className="text-left p-3 font-medium">Model</th>
               <th className="text-left p-3 font-medium">Connectors</th>
-              <th className="text-left p-3 font-medium">MCP</th>
               <th className="text-right p-3 font-medium">Runs</th>
               <th className="text-left p-3 font-medium">Last Run</th>
               <th className="text-right p-3 font-medium"></th>
@@ -88,27 +86,18 @@ export default async function AgentsPage() {
                 </td>
                 <td className="p-3 font-mono text-xs text-muted-foreground">{a.model}</td>
                 <td className="p-3">
-                  {a.composio_toolkits.length > 0 ? (
+                  {a.composio_toolkits.length > 0 || a.mcp_active_slugs.length > 0 || a.mcp_unhealthy_slugs.length > 0 ? (
                     <div className="flex gap-1 flex-wrap">
                       {a.composio_toolkits.map((t) => (
                         <Badge key={t} variant="secondary" className="text-xs">{t}</Badge>
                       ))}
+                      {a.mcp_active_slugs.map((s) => (
+                        <Badge key={`mcp-${s}`} variant="secondary" className="text-xs">{s}</Badge>
+                      ))}
+                      {a.mcp_unhealthy_slugs.map((s) => (
+                        <Badge key={`mcp-err-${s}`} variant="destructive" className="text-xs">{s}</Badge>
+                      ))}
                     </div>
-                  ) : (
-                    <span className="text-muted-foreground text-xs">—</span>
-                  )}
-                </td>
-                <td className="p-3">
-                  {a.mcp_total > 0 ? (
-                    a.mcp_unhealthy > 0 ? (
-                      <Badge variant="destructive" className="text-xs">
-                        {a.mcp_unhealthy} unhealthy
-                      </Badge>
-                    ) : (
-                      <Badge variant="default" className="text-xs">
-                        {a.mcp_active} active
-                      </Badge>
-                    )
                   ) : (
                     <span className="text-muted-foreground text-xs">—</span>
                   )}
@@ -124,7 +113,7 @@ export default async function AgentsPage() {
             ))}
             {agents.length === 0 && (
               <tr>
-                <td colSpan={9} className="p-8 text-center text-muted-foreground">No agents found</td>
+                <td colSpan={8} className="p-8 text-center text-muted-foreground">No agents found</td>
               </tr>
             )}
           </tbody>
