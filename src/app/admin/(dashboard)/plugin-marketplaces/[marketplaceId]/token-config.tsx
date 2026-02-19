@@ -86,9 +86,17 @@ export function TokenConfig({ marketplaceId, hasToken }: { marketplaceId: string
                 onChange={(e) => setToken(e.target.value)}
                 placeholder="ghp_... or github_pat_..."
               />
-              <p className="text-xs text-muted-foreground mt-1">
-                Requires a fine-grained token with Contents read/write permission.
-              </p>
+              <div className="text-xs text-muted-foreground mt-2 space-y-1">
+                <p className="font-medium">How to create a token:</p>
+                <ol className="list-decimal list-inside space-y-0.5 text-[11px]">
+                  <li>Go to <a href="https://github.com/settings/tokens?type=beta" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">GitHub → Settings → Fine-grained tokens</a></li>
+                  <li>Click <strong>Generate new token</strong></li>
+                  <li>Set a name and expiration</li>
+                  <li>Under <strong>Repository access</strong>, select the marketplace repo</li>
+                  <li>Under <strong>Permissions → Repository permissions</strong>, set <strong>Contents</strong> to <strong>Read and write</strong></li>
+                  <li>Click <strong>Generate token</strong> and paste it above</li>
+                </ol>
+              </div>
             </div>
             {error && <p className="text-xs text-red-500">{error}</p>}
             <div className="flex justify-end gap-2 pt-2">
