@@ -276,34 +276,60 @@ export async function callTokenRefreshEndpoint(params: {
     ...(params.clientSecret ? { client_secret: params.clientSecret } : {}),
   });
 
-  const response = await safeFetch(params.tokenEndpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: body.toString(),
-  });
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY_MS = 5_000;
 
-  if (!response.ok) {
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    const response = await safeFetch(params.tokenEndpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+
+      if (!data.access_token) {
+        throw new Error("Token refresh response missing access_token");
+      }
+
+      const expiresIn = data.expires_in ?? 3600;
+      const expiresAt = new Date(Date.now() + expiresIn * 1000);
+
+      return {
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token ?? params.refreshToken,
+        expiresAt,
+        scopes: data.scope ? data.scope.split(" ") : [],
+      };
+    }
+
     const errorBody = await response.text().catch(() => "");
-    throw new Error(
+
+    // Only retry on transient errors (5xx); client errors (4xx) are permanent
+    if (response.status < 500) {
+      throw new Error(
+        `Token refresh failed: ${response.status} ${response.statusText} - ${errorBody}`,
+      );
+    }
+
+    lastError = new Error(
       `Token refresh failed: ${response.status} ${response.statusText} - ${errorBody}`,
     );
+    logger.warn("Token refresh transient error, retrying", {
+      attempt,
+      status: response.status,
+      endpoint: params.tokenEndpoint,
+    });
+
+    if (attempt < MAX_RETRIES) {
+      await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+    }
   }
 
-  const data = await response.json();
-
-  if (!data.access_token) {
-    throw new Error("Token refresh response missing access_token");
-  }
-
-  const expiresIn = data.expires_in ?? 3600;
-  const expiresAt = new Date(Date.now() + expiresIn * 1000);
-
-  return {
-    accessToken: data.access_token,
-    refreshToken: data.refresh_token ?? params.refreshToken, // Use rotated token or keep existing
-    expiresAt,
-    scopes: data.scope ? data.scope.split(" ") : [],
-  };
+  throw lastError!;
 }
 
 // --- Tool Discovery ---
