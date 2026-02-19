@@ -102,10 +102,6 @@ export default async function PluginEditorPage({
   const skills = skillResults.filter(Boolean) as Array<{ path: string; content: string }>;
   const commands = commandResults.filter(Boolean) as Array<{ path: string; content: string }>;
 
-  // Group skills into folders by subdirectory
-  const skillFolders = groupIntoFolders(skills);
-  const commandFolders = groupIntoFolders(commands);
-
   return (
     <div className="space-y-6">
       <div>
@@ -124,37 +120,11 @@ export default async function PluginEditorPage({
       <PluginEditorClient
         marketplaceId={marketplaceId}
         pluginName={pluginName}
-        initialSkills={skillFolders}
-        initialCommands={commandFolders}
+        initialSkills={skills}
+        initialCommands={commands}
         initialMcpJson={mcpJson}
         readOnly={!isOwned}
       />
     </div>
   );
-}
-
-/**
- * Group flat file list into folder structure.
- * Files like "subfolder/SKILL.md" go into a "subfolder" folder.
- * Files like "file.md" go into a "root" folder.
- */
-function groupIntoFolders(files: Array<{ path: string; content: string }>): Array<{ folder: string; files: Array<{ path: string; content: string }> }> {
-  const folderMap = new Map<string, Array<{ path: string; content: string }>>();
-
-  for (const file of files) {
-    const parts = file.path.split("/");
-    if (parts.length > 1) {
-      const folder = parts.slice(0, -1).join("/");
-      const fileName = parts[parts.length - 1];
-      const existing = folderMap.get(folder) ?? [];
-      existing.push({ path: fileName, content: file.content });
-      folderMap.set(folder, existing);
-    } else {
-      const existing = folderMap.get("(root)") ?? [];
-      existing.push({ path: file.path, content: file.content });
-      folderMap.set("(root)", existing);
-    }
-  }
-
-  return Array.from(folderMap.entries()).map(([folder, files]) => ({ folder, files }));
 }

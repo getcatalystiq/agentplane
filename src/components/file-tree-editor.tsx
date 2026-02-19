@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { markdown } from "@codemirror/lang-markdown";
 import { javascript } from "@codemirror/lang-javascript";
@@ -11,14 +11,16 @@ import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
-export interface FileTreeFile {
+export interface FlatFile {
   path: string;
   content: string;
 }
 
-export interface FileTreeFolder {
-  folder: string;
-  files: FileTreeFile[];
+interface TreeNode {
+  name: string;
+  fullPath: string;
+  children: TreeNode[];
+  files: FlatFile[];
 }
 
 function getLanguageExtension(filename: string) {
@@ -38,16 +40,98 @@ function getLanguageExtension(filename: string) {
   }
 }
 
+function buildTree(files: FlatFile[]): { rootFiles: FlatFile[]; rootDirs: TreeNode[] } {
+  const rootFiles: FlatFile[] = [];
+  const dirMap = new Map<string, TreeNode>();
+
+  function ensureDir(dirPath: string): TreeNode {
+    const existing = dirMap.get(dirPath);
+    if (existing) return existing;
+
+    const parts = dirPath.split("/");
+    const node: TreeNode = {
+      name: parts[parts.length - 1],
+      fullPath: dirPath,
+      children: [],
+      files: [],
+    };
+    dirMap.set(dirPath, node);
+
+    if (parts.length > 1) {
+      const parentPath = parts.slice(0, -1).join("/");
+      const parent = ensureDir(parentPath);
+      if (!parent.children.some(c => c.fullPath === dirPath)) {
+        parent.children.push(node);
+      }
+    }
+
+    return node;
+  }
+
+  for (const file of files) {
+    const slashIdx = file.path.lastIndexOf("/");
+    if (slashIdx === -1) {
+      rootFiles.push(file);
+    } else {
+      const dirPath = file.path.slice(0, slashIdx);
+      const dir = ensureDir(dirPath);
+      dir.files.push(file);
+    }
+  }
+
+  // Collect only top-level dirs
+  const rootDirs: TreeNode[] = [];
+  for (const node of dirMap.values()) {
+    if (!node.fullPath.includes("/") || !dirMap.has(node.fullPath.slice(0, node.fullPath.lastIndexOf("/")))) {
+      // This is a root-level directory (no parent in the map, or no slash)
+      if (!node.fullPath.includes("/")) {
+        rootDirs.push(node);
+      }
+    }
+  }
+  // Actually, let's just find nodes whose fullPath has no "/" (they are top-level)
+  // But we also need to handle the case where intermediate dirs were created
+  // Let's simplify: root dirs are those whose fullPath doesn't contain "/"
+  const topLevel: TreeNode[] = [];
+  for (const node of dirMap.values()) {
+    if (!node.fullPath.includes("/")) {
+      topLevel.push(node);
+    }
+  }
+
+  // Sort children recursively
+  function sortNode(node: TreeNode) {
+    node.children.sort((a, b) => a.name.localeCompare(b.name));
+    node.files.sort((a, b) => a.path.localeCompare(b.path));
+    node.children.forEach(sortNode);
+  }
+  topLevel.forEach(sortNode);
+  topLevel.sort((a, b) => a.name.localeCompare(b.name));
+  rootFiles.sort((a, b) => a.path.localeCompare(b.path));
+
+  return { rootFiles, rootDirs: topLevel };
+}
+
+function collectAllDirPaths(nodes: TreeNode[]): Set<string> {
+  const paths = new Set<string>();
+  function walk(node: TreeNode) {
+    paths.add(node.fullPath);
+    node.children.forEach(walk);
+  }
+  nodes.forEach(walk);
+  return paths;
+}
+
 interface FileTreeEditorProps {
-  initialFiles: FileTreeFolder[];
-  onSave: (files: FileTreeFolder[]) => Promise<void>;
-  onChange?: (files: FileTreeFolder[]) => void;
+  initialFiles: FlatFile[];
+  onChange?: (files: FlatFile[]) => void;
+  onSave: (files: FlatFile[]) => Promise<void>;
   readOnly?: boolean;
   hideSave?: boolean;
   title?: string;
   saveLabel?: string;
   addFolderLabel?: string;
-  newFolderTemplate?: FileTreeFile;
+  newFileTemplate?: { filename: string; content: string };
 }
 
 export function FileTreeEditor({
@@ -59,122 +143,197 @@ export function FileTreeEditor({
   title = "Files",
   saveLabel = "Save",
   addFolderLabel = "Folder",
-  newFolderTemplate = { path: "SKILL.md", content: "# New\n\nDescribe this...\n" },
+  newFileTemplate = { filename: "SKILL.md", content: "# New\n\nDescribe this...\n" },
 }: FileTreeEditorProps) {
-  const [folders, setFolders] = useState<FileTreeFolder[]>(initialFiles);
-  const [selectedFolder, setSelectedFolder] = useState<number>(initialFiles.length > 0 ? 0 : -1);
-  const [selectedFile, setSelectedFile] = useState<number>(initialFiles.length > 0 && initialFiles[0].files.length > 0 ? 0 : -1);
+  const [files, setFiles] = useState<FlatFile[]>(initialFiles);
+  const [selectedPath, setSelectedPath] = useState<string | null>(
+    initialFiles.length > 0 ? initialFiles[0].path : null,
+  );
   const [saving, setSaving] = useState(false);
-  const [newFolderName, setNewFolderName] = useState("");
-  const [newFileName, setNewFileName] = useState("");
+  const [expanded, setExpanded] = useState<Set<string>>(() => {
+    const { rootDirs } = buildTree(initialFiles);
+    return collectAllDirPaths(rootDirs);
+  });
   const [showAddFolder, setShowAddFolder] = useState(false);
-  const [showAddFile, setShowAddFile] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [addingFileInDir, setAddingFileInDir] = useState<string | null>(null);
+  const [newFileName, setNewFileName] = useState("");
   const savedSnapshot = useRef(JSON.stringify(initialFiles));
 
   useEffect(() => {
     savedSnapshot.current = JSON.stringify(initialFiles);
-    setFolders(initialFiles);
+    setFiles(initialFiles);
+    // Expand all dirs when initialFiles changes
+    const { rootDirs } = buildTree(initialFiles);
+    setExpanded(collectAllDirPaths(rootDirs));
   }, [initialFiles]);
 
-  // Notify parent of changes
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   useEffect(() => {
-    if (onChangeRef.current && JSON.stringify(folders) !== savedSnapshot.current) {
-      onChangeRef.current(folders);
+    if (onChangeRef.current && JSON.stringify(files) !== savedSnapshot.current) {
+      onChangeRef.current(files);
     }
-  }, [folders]);
+  }, [files]);
 
   const isDirty = useMemo(
-    () => JSON.stringify(folders) !== savedSnapshot.current,
-    [folders],
+    () => JSON.stringify(files) !== savedSnapshot.current,
+    [files],
   );
 
-  const activeFile = selectedFolder >= 0 && selectedFile >= 0
-    ? folders[selectedFolder]?.files[selectedFile]
-    : null;
+  const tree = useMemo(() => buildTree(files), [files]);
 
-  function handleEditorChange(value: string) {
-    if (readOnly || selectedFolder < 0 || selectedFile < 0) return;
-    setFolders((prev) =>
-      prev.map((folder, fi) =>
-        fi === selectedFolder
-          ? {
-              ...folder,
-              files: folder.files.map((file, si) =>
-                si === selectedFile ? { ...file, content: value } : file,
-              ),
-            }
-          : folder,
-      ),
-    );
+  const activeFile = useMemo(
+    () => (selectedPath ? files.find(f => f.path === selectedPath) ?? null : null),
+    [files, selectedPath],
+  );
+
+  const handleEditorChange = useCallback((value: string) => {
+    if (readOnly || !selectedPath) return;
+    setFiles(prev => prev.map(f => f.path === selectedPath ? { ...f, content: value } : f));
+  }, [readOnly, selectedPath]);
+
+  function toggleExpand(dirPath: string) {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      if (next.has(dirPath)) {
+        next.delete(dirPath);
+      } else {
+        next.add(dirPath);
+      }
+      return next;
+    });
   }
 
   function addFolder() {
     const name = newFolderName.trim();
-    if (!name || folders.some((f) => f.folder === name)) return;
-    const newFolder: FileTreeFolder = {
-      folder: name,
-      files: [{ ...newFolderTemplate, content: newFolderTemplate.content.replace("# New", `# ${name}`) }],
-    };
-    setFolders((prev) => [...prev, newFolder]);
-    setSelectedFolder(folders.length);
-    setSelectedFile(0);
+    if (!name) return;
+    const filePath = `${name}/${newFileTemplate.filename}`;
+    if (files.some(f => f.path === filePath)) return;
+    const content = newFileTemplate.content.replace("# New", `# ${name}`);
+    setFiles(prev => [...prev, { path: filePath, content }]);
+    setSelectedPath(filePath);
+    setExpanded(prev => new Set([...prev, name]));
     setNewFolderName("");
     setShowAddFolder(false);
   }
 
-  function removeFolder(index: number) {
-    if (!confirm(`Remove folder "${folders[index].folder}" and all its files?`)) return;
-    setFolders((prev) => prev.filter((_, i) => i !== index));
-    if (selectedFolder === index) {
-      setSelectedFolder(folders.length > 1 ? 0 : -1);
-      setSelectedFile(folders.length > 1 ? 0 : -1);
-    } else if (selectedFolder > index) {
-      setSelectedFolder((prev) => prev - 1);
+  function removeDir(dirPath: string) {
+    const prefix = dirPath + "/";
+    const affectedFiles = files.filter(f => f.path.startsWith(prefix));
+    if (affectedFiles.length === 0) return;
+    if (!confirm(`Remove "${dirPath}" and all ${affectedFiles.length} file(s)?`)) return;
+    setFiles(prev => prev.filter(f => !f.path.startsWith(prefix)));
+    if (selectedPath && selectedPath.startsWith(prefix)) {
+      setSelectedPath(null);
     }
   }
 
-  function addFile() {
+  function removeFile(filePath: string) {
+    const fileName = filePath.split("/").pop() ?? filePath;
+    if (!confirm(`Remove file "${fileName}"?`)) return;
+    setFiles(prev => prev.filter(f => f.path !== filePath));
+    if (selectedPath === filePath) {
+      setSelectedPath(null);
+    }
+  }
+
+  function addFileInDir(dirPath: string) {
     const name = newFileName.trim();
-    if (!name || selectedFolder < 0) return;
-    if (folders[selectedFolder].files.some((f) => f.path === name)) return;
-    setFolders((prev) =>
-      prev.map((folder, i) =>
-        i === selectedFolder
-          ? { ...folder, files: [...folder.files, { path: name, content: "" }] }
-          : folder,
-      ),
-    );
-    setSelectedFile(folders[selectedFolder].files.length);
+    if (!name) return;
+    const filePath = dirPath ? `${dirPath}/${name}` : name;
+    if (files.some(f => f.path === filePath)) return;
+    setFiles(prev => [...prev, { path: filePath, content: "" }]);
+    setSelectedPath(filePath);
     setNewFileName("");
-    setShowAddFile(false);
-  }
-
-  function removeFile(folderIndex: number, fileIndex: number) {
-    const file = folders[folderIndex].files[fileIndex];
-    if (!confirm(`Remove file "${file.path}"?`)) return;
-    setFolders((prev) =>
-      prev.map((folder, i) =>
-        i === folderIndex
-          ? { ...folder, files: folder.files.filter((_, fi) => fi !== fileIndex) }
-          : folder,
-      ),
-    );
-    if (selectedFolder === folderIndex && selectedFile === fileIndex) {
-      setSelectedFile(folders[folderIndex].files.length > 1 ? 0 : -1);
-    } else if (selectedFolder === folderIndex && selectedFile > fileIndex) {
-      setSelectedFile((prev) => prev - 1);
-    }
+    setAddingFileInDir(null);
   }
 
   async function handleSave() {
     setSaving(true);
     try {
-      await onSave(folders);
+      await onSave(files);
     } finally {
       setSaving(false);
     }
+  }
+
+  function renderTreeNode(node: TreeNode, depth: number) {
+    const isExpanded = expanded.has(node.fullPath);
+    return (
+      <div key={node.fullPath}>
+        <div
+          className={`flex items-center justify-between cursor-pointer hover:bg-muted/50 py-1 pr-2`}
+          style={{ paddingLeft: `${depth * 16 + 8}px` }}
+          onClick={() => toggleExpand(node.fullPath)}
+        >
+          <span className="font-medium text-xs truncate flex items-center gap-1">
+            <span className="text-muted-foreground">{isExpanded ? "▾" : "▸"}</span>
+            {node.name}/
+          </span>
+          {!readOnly && (
+            <button
+              onClick={(e) => { e.stopPropagation(); removeDir(node.fullPath); }}
+              className="text-muted-foreground hover:text-destructive text-xs ml-1 shrink-0"
+            >
+              &times;
+            </button>
+          )}
+        </div>
+        {isExpanded && (
+          <>
+            {node.children.map(child => renderTreeNode(child, depth + 1))}
+            {node.files.map(file => {
+              const fileName = file.path.split("/").pop() ?? file.path;
+              return (
+                <div
+                  key={file.path}
+                  className={`flex items-center justify-between cursor-pointer hover:bg-muted/30 py-1 pr-2 ${
+                    selectedPath === file.path ? "bg-primary/10 text-primary" : ""
+                  }`}
+                  style={{ paddingLeft: `${(depth + 1) * 16 + 8}px` }}
+                  onClick={() => setSelectedPath(file.path)}
+                >
+                  <span className="text-xs truncate">{fileName}</span>
+                  {!readOnly && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); removeFile(file.path); }}
+                      className="text-muted-foreground hover:text-destructive text-xs ml-1 shrink-0"
+                    >
+                      &times;
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+            {!readOnly && (
+              <div style={{ paddingLeft: `${(depth + 1) * 16 + 8}px` }} className="py-1 pr-2">
+                {addingFileInDir === node.fullPath ? (
+                  <div className="flex gap-1">
+                    <Input
+                      value={newFileName}
+                      onChange={(e) => setNewFileName(e.target.value)}
+                      placeholder="file.md"
+                      className="h-6 text-xs"
+                      onKeyDown={(e) => e.key === "Enter" && addFileInDir(node.fullPath)}
+                      autoFocus
+                    />
+                    <Button onClick={() => addFileInDir(node.fullPath)} size="sm" className="h-6 text-xs px-2">+</Button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => { setAddingFileInDir(node.fullPath); setNewFileName(""); }}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    + File
+                  </button>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    );
   }
 
   return (
@@ -214,81 +373,36 @@ export function FileTreeEditor({
                   placeholder="folder-name"
                   className="h-7 text-xs"
                   onKeyDown={(e) => e.key === "Enter" && addFolder()}
+                  autoFocus
                 />
                 <Button onClick={addFolder} size="sm" className="h-7 text-xs px-2">Add</Button>
               </div>
             )}
-            <div className="text-sm">
-              {folders.map((folder, fi) => (
-                <div key={folder.folder}>
-                  <div
-                    className={`flex items-center justify-between px-3 py-1.5 cursor-pointer hover:bg-muted/50 ${
-                      selectedFolder === fi ? "bg-muted" : ""
-                    }`}
-                    onClick={() => {
-                      setSelectedFolder(fi);
-                      setSelectedFile(folder.files.length > 0 ? 0 : -1);
-                    }}
-                  >
-                    <span className="font-medium text-xs truncate">{folder.folder}/</span>
-                    {!readOnly && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); removeFolder(fi); }}
-                        className="text-muted-foreground hover:text-destructive text-xs ml-1"
-                      >
-                        &times;
-                      </button>
-                    )}
-                  </div>
-                  {selectedFolder === fi && (
-                    <div className="ml-3 border-l border-border">
-                      {folder.files.map((file, si) => (
-                        <div
-                          key={file.path}
-                          className={`flex items-center justify-between px-3 py-1 cursor-pointer hover:bg-muted/30 ${
-                            selectedFile === si ? "bg-primary/10 text-primary" : ""
-                          }`}
-                          onClick={() => setSelectedFile(si)}
-                        >
-                          <span className="text-xs truncate">{file.path}</span>
-                          {!readOnly && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); removeFile(fi, si); }}
-                              className="text-muted-foreground hover:text-destructive text-xs ml-1"
-                            >
-                              &times;
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                      {!readOnly && selectedFolder === fi && (
-                        <div className="px-3 py-1">
-                          {showAddFile ? (
-                            <div className="flex gap-1">
-                              <Input
-                                value={newFileName}
-                                onChange={(e) => setNewFileName(e.target.value)}
-                                placeholder="file.md"
-                                className="h-6 text-xs"
-                                onKeyDown={(e) => e.key === "Enter" && addFile()}
-                              />
-                              <Button onClick={addFile} size="sm" className="h-6 text-xs px-2">+</Button>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => setShowAddFile(true)}
-                              className="text-xs text-primary hover:underline"
-                            >
-                              + File
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
+            <div className="text-sm overflow-y-auto">
+              {/* Root-level files */}
+              {tree.rootFiles.map(file => (
+                <div
+                  key={file.path}
+                  className={`flex items-center justify-between cursor-pointer hover:bg-muted/30 py-1 pr-2 ${
+                    selectedPath === file.path ? "bg-primary/10 text-primary" : ""
+                  }`}
+                  style={{ paddingLeft: "8px" }}
+                  onClick={() => setSelectedPath(file.path)}
+                >
+                  <span className="text-xs truncate">{file.path}</span>
+                  {!readOnly && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); removeFile(file.path); }}
+                      className="text-muted-foreground hover:text-destructive text-xs ml-1 shrink-0"
+                    >
+                      &times;
+                    </button>
                   )}
                 </div>
               ))}
-              {folders.length === 0 && (
+              {/* Directory tree */}
+              {tree.rootDirs.map(node => renderTreeNode(node, 0))}
+              {files.length === 0 && (
                 <p className="p-3 text-xs text-muted-foreground">
                   {readOnly ? "No files." : `No ${title.toLowerCase()} yet. Add a ${addFolderLabel.toLowerCase()} to get started.`}
                 </p>
@@ -301,7 +415,7 @@ export function FileTreeEditor({
             {activeFile ? (
               <div className="h-full flex flex-col">
                 <div className="px-3 py-1.5 bg-muted/50 border-b border-border text-xs text-muted-foreground">
-                  {folders[selectedFolder].folder}/{activeFile.path}
+                  {activeFile.path}
                 </div>
                 <CodeMirror
                   value={activeFile.content}

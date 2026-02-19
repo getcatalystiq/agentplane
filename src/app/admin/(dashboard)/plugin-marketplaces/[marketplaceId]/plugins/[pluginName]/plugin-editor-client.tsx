@@ -9,13 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { FileTreeEditor } from "@/components/file-tree-editor";
-import type { FileTreeFolder } from "@/components/file-tree-editor";
+import type { FlatFile } from "@/components/file-tree-editor";
 
 interface PluginEditorClientProps {
   marketplaceId: string;
   pluginName: string;
-  initialSkills: FileTreeFolder[];
-  initialCommands: FileTreeFolder[];
+  initialSkills: FlatFile[];
+  initialCommands: FlatFile[];
   initialMcpJson: string | null;
   readOnly: boolean;
 }
@@ -37,11 +37,11 @@ export function PluginEditorClient({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const handleSkillsChange = useCallback((updated: FileTreeFolder[]) => {
+  const handleSkillsChange = useCallback((updated: FlatFile[]) => {
     setSkills(updated);
   }, []);
 
-  const handleCommandsChange = useCallback((updated: FileTreeFolder[]) => {
+  const handleCommandsChange = useCallback((updated: FlatFile[]) => {
     setCommands(updated);
   }, []);
 
@@ -53,27 +53,13 @@ export function PluginEditorClient({
     setError("");
     setSuccess("");
 
-    // Flatten folder structure back to flat file list
-    const skillFiles = skills.flatMap(folder =>
-      folder.files.map(f => ({
-        path: folder.folder === "(root)" ? f.path : `${folder.folder}/${f.path}`,
-        content: f.content,
-      })),
-    );
-    const commandFiles = commands.flatMap(folder =>
-      folder.files.map(f => ({
-        path: folder.folder === "(root)" ? f.path : `${folder.folder}/${f.path}`,
-        content: f.content,
-      })),
-    );
-
     try {
       const res = await fetch(`/api/admin/plugin-marketplaces/${marketplaceId}/plugins/${pluginName}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          skills: skillFiles,
-          commands: commandFiles,
+          skills,
+          commands,
           mcpJson: mcpJson || null,
         }),
       });
@@ -95,8 +81,8 @@ export function PluginEditorClient({
   }
 
   const tabs = [
-    { id: "skills" as const, label: "Skills", count: skills.reduce((n, f) => n + f.files.length, 0) },
-    { id: "commands" as const, label: "Commands", count: commands.reduce((n, f) => n + f.files.length, 0) },
+    { id: "skills" as const, label: "Skills", count: skills.length },
+    { id: "commands" as const, label: "Commands", count: commands.length },
     { id: "connectors" as const, label: "Connectors", count: mcpJson ? 1 : 0 },
   ];
   return (
@@ -142,7 +128,7 @@ export function PluginEditorClient({
           hideSave={!readOnly}
           title="Skills"
           addFolderLabel="Skill"
-          newFolderTemplate={{ path: "SKILL.md", content: "# New\n\nDescribe this skill...\n" }}
+          newFileTemplate={{ filename: "SKILL.md", content: "# New\n\nDescribe this skill...\n" }}
         />
       )}
 
@@ -155,7 +141,7 @@ export function PluginEditorClient({
           hideSave={!readOnly}
           title="Commands"
           addFolderLabel="Command"
-          newFolderTemplate={{ path: "command.md", content: "# New Command\n\nDescribe this command...\n" }}
+          newFileTemplate={{ filename: "command.md", content: "# New Command\n\nDescribe this command...\n" }}
         />
       )}
 
