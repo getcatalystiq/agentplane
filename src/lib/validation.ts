@@ -93,7 +93,7 @@ export const PluginMcpJsonSchema = z.object({
     z.string().min(1).max(100),
     z.object({
       type: z.string().min(1).max(50),
-      url: z.string().url(),
+      url: z.string().min(1),
     }),
   ).optional(),
 });

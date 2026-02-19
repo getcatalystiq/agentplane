@@ -209,11 +209,10 @@ export async function fetchPluginContent(
     for (const plugin of marketplacePlugins) {
       const pluginName = plugin.plugin_name;
 
-      // Find skill files: pluginName/skills/*/SKILL.md or pluginName/skills/*.md
+      // Find skill files: all files under pluginName/skills/
       const skillEntries = tree.filter(
         e => e.type === "blob"
-          && e.path.startsWith(`${pluginName}/skills/`)
-          && e.path.endsWith(".md"),
+          && e.path.startsWith(`${pluginName}/skills/`),
       );
 
       // Find command files: pluginName/commands/*.md
