@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { query } from "@/db";
 import { z } from "zod";
@@ -10,6 +11,7 @@ const MarketplaceWithStats = z.object({
   github_repo: z.string(),
   created_at: z.coerce.string(),
   agent_count: z.coerce.number(),
+  is_owned: z.boolean(),
 });
 
 export const dynamic = "force-dynamic";
@@ -17,8 +19,9 @@ export const dynamic = "force-dynamic";
 export default async function PluginMarketplacesPage() {
   const marketplaces = await query(
     MarketplaceWithStats,
-    `SELECT pm.*,
-       (SELECT COUNT(*)::int FROM agents WHERE plugins @> jsonb_build_array(jsonb_build_object('marketplace_id', pm.id::text))) AS agent_count
+    `SELECT pm.id, pm.name, pm.github_repo, pm.created_at,
+       (SELECT COUNT(*)::int FROM agents WHERE plugins @> jsonb_build_array(jsonb_build_object('marketplace_id', pm.id::text))) AS agent_count,
+       (pm.github_token_enc IS NOT NULL) AS is_owned
      FROM plugin_marketplaces pm
      ORDER BY pm.name`,
     [],
@@ -45,7 +48,17 @@ export default async function PluginMarketplacesPage() {
           <tbody>
             {marketplaces.map((m) => (
               <tr key={m.id} className="border-b border-border hover:bg-muted/30 transition-colors">
-                <td className="p-3 font-medium">{m.name}</td>
+                <td className="p-3 font-medium">
+                  <Link
+                    href={`/admin/plugin-marketplaces/${m.id}`}
+                    className="text-primary hover:underline"
+                  >
+                    {m.name}
+                  </Link>
+                  {m.is_owned && (
+                    <Badge variant="secondary" className="ml-2 text-xs">Owned</Badge>
+                  )}
+                </td>
                 <td className="p-3">
                   <a
                     href={`https://github.com/${m.github_repo}`}

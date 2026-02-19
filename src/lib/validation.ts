@@ -52,11 +52,16 @@ export const PluginMarketplaceRow = z.object({
   id: z.string(),
   name: z.string(),
   github_repo: z.string(),
+  github_token_enc: z.string().nullable().default(null),
   created_at: z.coerce.date(),
   updated_at: z.coerce.date(),
 });
 
 export type PluginMarketplace = z.infer<typeof PluginMarketplaceRow>;
+
+export const UpdateMarketplaceSchema = z.object({
+  github_token: z.string().min(1).nullable(),
+}).partial();
 
 // Agent plugin config (stored in agents.plugins JSONB)
 export const AgentPluginSchema = z.object({
@@ -112,7 +117,7 @@ export const GitHubTreeResponseSchema = z.object({
 // Safe filename for plugin files from GitHub
 export const SafePluginFilename = z.string()
   .min(1).max(255)
-  .regex(/^[a-zA-Z0-9_-]+\.md$/, "Must be a .md file with safe characters only");
+  .regex(/^[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+$/, "Must have a safe filename with extension");
 
 // --- Agent Validation ---
 

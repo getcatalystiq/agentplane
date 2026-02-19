@@ -1,0 +1,160 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { queryOne } from "@/db";
+import { PluginMarketplaceRow, PluginManifestSchema } from "@/lib/validation";
+import { fetchRepoTree, fetchRawContent } from "@/lib/github";
+import { Badge } from "@/components/ui/badge";
+import { getEnv } from "@/lib/env";
+import { decrypt } from "@/lib/crypto";
+import { PluginEditorClient } from "./plugin-editor-client";
+
+export const dynamic = "force-dynamic";
+
+function getGlobalToken(): string | undefined {
+  try {
+    return getEnv().GITHUB_TOKEN;
+  } catch {
+    return undefined;
+  }
+}
+
+export default async function PluginEditorPage({
+  params,
+}: {
+  params: Promise<{ marketplaceId: string; pluginName: string }>;
+}) {
+  const { marketplaceId, pluginName } = await params;
+
+  const marketplace = await queryOne(
+    PluginMarketplaceRow,
+    "SELECT * FROM plugin_marketplaces WHERE id = $1",
+    [marketplaceId],
+  );
+  if (!marketplace) notFound();
+
+  const isOwned = marketplace.github_token_enc !== null;
+
+  // Get token (marketplace-specific or global)
+  let token: string | undefined;
+  if (marketplace.github_token_enc) {
+    try {
+      const env = getEnv();
+      const encrypted = JSON.parse(marketplace.github_token_enc);
+      token = await decrypt(encrypted, env.ENCRYPTION_KEY, env.ENCRYPTION_KEY_PREVIOUS);
+    } catch {
+      token = getGlobalToken();
+    }
+  } else {
+    token = getGlobalToken();
+  }
+
+  const [owner, repo] = marketplace.github_repo.split("/");
+  const treeResult = await fetchRepoTree(owner, repo, token);
+  if (!treeResult.ok) {
+    return (
+      <div className="space-y-4">
+        <Link href={`/admin/plugin-marketplaces/${marketplaceId}`} className="text-muted-foreground hover:text-foreground text-sm">&larr; Back</Link>
+        <p className="text-sm text-red-500">Failed to load plugin: {treeResult.message}</p>
+      </div>
+    );
+  }
+
+  const tree = treeResult.data;
+
+  // Fetch plugin manifest for display name
+  const manifestResult = await fetchRawContent(owner, repo, `${pluginName}/.claude-plugin/plugin.json`, token);
+  let displayName = pluginName;
+  if (manifestResult.ok) {
+    try {
+      const manifest = PluginManifestSchema.parse(JSON.parse(manifestResult.data));
+      displayName = manifest.name;
+    } catch { /* use pluginName */ }
+  }
+
+  // Fetch skill files
+  const skillEntries = tree.filter(
+    e => e.type === "blob" && e.path.startsWith(`${pluginName}/skills/`),
+  );
+  const skillResults = await Promise.all(skillEntries.map(async (entry) => {
+    const contentResult = await fetchRawContent(owner, repo, entry.path, token);
+    if (!contentResult.ok) return null;
+    return { path: entry.path.replace(`${pluginName}/skills/`, ""), content: contentResult.data };
+  }));
+
+  // Fetch command files
+  const commandEntries = tree.filter(
+    e => e.type === "blob" && e.path.startsWith(`${pluginName}/commands/`) && e.path.endsWith(".md"),
+  );
+  const commandResults = await Promise.all(commandEntries.map(async (entry) => {
+    const contentResult = await fetchRawContent(owner, repo, entry.path, token);
+    if (!contentResult.ok) return null;
+    return { path: entry.path.replace(`${pluginName}/commands/`, ""), content: contentResult.data };
+  }));
+
+  // Fetch .mcp.json
+  const mcpJsonEntry = tree.find(e => e.type === "blob" && e.path === `${pluginName}/.mcp.json`);
+  let mcpJson: string | null = null;
+  if (mcpJsonEntry) {
+    const mcpResult = await fetchRawContent(owner, repo, mcpJsonEntry.path, token);
+    if (mcpResult.ok) mcpJson = mcpResult.data;
+  }
+
+  const skills = skillResults.filter(Boolean) as Array<{ path: string; content: string }>;
+  const commands = commandResults.filter(Boolean) as Array<{ path: string; content: string }>;
+
+  // Group skills into folders by subdirectory
+  const skillFolders = groupIntoFolders(skills);
+  const commandFolders = groupIntoFolders(commands);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <div className="flex items-center gap-3">
+          <Link href={`/admin/plugin-marketplaces/${marketplaceId}`} className="text-muted-foreground hover:text-foreground text-sm">&larr; {marketplace.name}</Link>
+          <span className="text-muted-foreground">/</span>
+          <h1 className="text-2xl font-semibold">{displayName}</h1>
+          {isOwned ? (
+            <Badge variant="secondary">Editable</Badge>
+          ) : (
+            <Badge variant="outline">Read-only</Badge>
+          )}
+        </div>
+      </div>
+
+      <PluginEditorClient
+        marketplaceId={marketplaceId}
+        pluginName={pluginName}
+        initialSkills={skillFolders}
+        initialCommands={commandFolders}
+        initialMcpJson={mcpJson}
+        readOnly={!isOwned}
+      />
+    </div>
+  );
+}
+
+/**
+ * Group flat file list into folder structure.
+ * Files like "subfolder/SKILL.md" go into a "subfolder" folder.
+ * Files like "file.md" go into a "root" folder.
+ */
+function groupIntoFolders(files: Array<{ path: string; content: string }>): Array<{ folder: string; files: Array<{ path: string; content: string }> }> {
+  const folderMap = new Map<string, Array<{ path: string; content: string }>>();
+
+  for (const file of files) {
+    const parts = file.path.split("/");
+    if (parts.length > 1) {
+      const folder = parts.slice(0, -1).join("/");
+      const fileName = parts[parts.length - 1];
+      const existing = folderMap.get(folder) ?? [];
+      existing.push({ path: fileName, content: file.content });
+      folderMap.set(folder, existing);
+    } else {
+      const existing = folderMap.get("(root)") ?? [];
+      existing.push({ path: file.path, content: file.content });
+      folderMap.set("(root)", existing);
+    }
+  }
+
+  return Array.from(folderMap.entries()).map(([folder, files]) => ({ folder, files }));
+}
