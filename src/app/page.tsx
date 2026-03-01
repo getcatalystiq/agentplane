@@ -141,9 +141,9 @@ const features = [
   },
   {
     icon: Zap,
-    title: "Skills",
+    title: "Skills and Plugins",
     description:
-      "Inject custom skills into agents as files before execution. Extend agent capabilities without changing code.",
+      "Inject custom skills into agents as files before execution. Extend agent capabilities without changing code. Use Claude Cowork plugins.",
   },
   {
     icon: Layers,
