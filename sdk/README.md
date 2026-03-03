@@ -114,6 +114,105 @@ await client.agents.update(agent.id, { max_turns: 10 });
 await client.agents.delete(agent.id);
 ```
 
+### Skills
+
+Manage custom skill files injected into an agent's sandbox.
+
+```ts
+// List skills
+const skills = await client.agents.skills.list(agentId);
+
+// Create a skill
+await client.agents.skills.create(agentId, {
+  folder: "code-review",
+  files: [{ path: "SKILL.md", content: "Review code for best practices..." }],
+});
+
+// Update a skill's files
+await client.agents.skills.update(agentId, "code-review", {
+  files: [{ path: "SKILL.md", content: "Updated instructions..." }],
+});
+
+// Delete a skill
+await client.agents.skills.delete(agentId, "code-review");
+```
+
+### Plugins
+
+Install plugins from a marketplace into an agent.
+
+```ts
+// List installed plugins
+const plugins = await client.agents.plugins.list(agentId);
+
+// Add a plugin
+await client.agents.plugins.add(agentId, {
+  marketplace_id: "mp_abc123",
+  plugin_name: "linter",
+});
+
+// Remove a plugin
+await client.agents.plugins.remove(agentId, "mp_abc123", "linter");
+```
+
+### Connectors (Composio)
+
+Manage Composio toolkit connections for an agent.
+
+```ts
+// List connector statuses
+const connectors = await client.agents.connectors.list(agentId);
+
+// Save an API key for a toolkit
+await client.agents.connectors.saveApiKey(agentId, {
+  toolkit: "github",
+  api_key: "ghp_...",
+});
+
+// Initiate OAuth flow — returns { redirect_url }
+const { redirect_url } = await client.agents.connectors.initiateOauth(agentId, "gmail");
+
+// Discover available toolkits and tools
+const toolkits = await client.connectors.availableToolkits();
+const tools = await client.connectors.availableTools("github");
+```
+
+### Custom Connectors (MCP)
+
+Manage custom MCP server connections for an agent.
+
+```ts
+// List available MCP servers
+const servers = await client.customConnectors.listServers();
+
+// List connections for an agent
+const connections = await client.agents.customConnectors.list(agentId);
+
+// Initiate OAuth flow — returns { redirectUrl }
+const { redirectUrl } = await client.agents.customConnectors.initiateOauth(agentId, serverId);
+
+// List tools on a connected server
+const tools = await client.agents.customConnectors.listTools(agentId, serverId);
+
+// Update allowed tools
+await client.agents.customConnectors.updateAllowedTools(agentId, serverId, ["tool1", "tool2"]);
+
+// Disconnect
+await client.agents.customConnectors.delete(agentId, serverId);
+```
+
+### Plugin Marketplaces
+
+Browse the global plugin marketplace registry.
+
+```ts
+// List marketplaces
+const marketplaces = await client.pluginMarketplaces.list();
+
+// List plugins in a marketplace
+const plugins = await client.pluginMarketplaces.listPlugins(marketplaceId);
+```
+
 ### Abort a stream
 
 ```ts

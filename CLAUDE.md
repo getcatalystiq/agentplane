@@ -47,7 +47,8 @@ src/
   app/
     page.tsx              # Landing page ("Claude Agents as an API")
     api/
-      agents/             # CRUD + run creation + Composio OAuth + MCP connections
+      agents/             # CRUD + run creation + skills + plugins + Composio OAuth + MCP connections
+      composio/           # tenant-scoped Composio toolkit + tool discovery
       runs/               # run list, status (NDJSON stream), cancel, transcript
       admin/
         agents/           # admin agent CRUD + connectors + MCP connections + plugin suggestions
@@ -61,6 +62,7 @@ src/
       health/             # health check (no auth)
       keys/               # tenant-scoped API key management
       mcp-servers/        # MCP OAuth callback + server listing
+      plugin-marketplaces/  # tenant-scoped marketplace + plugin discovery
       runs/               # tenant-scoped run management (list + per-run)
       tenants/            # tenant self-service (GET /me)
     admin/                # Admin UI (Next.js pages, dark mode)
@@ -89,7 +91,7 @@ src/
     mcp-oauth.ts          # OAuth 2.1 PKCE HTTP calls (discovery, registration, token exchange)
     mcp-oauth-state.ts    # signed MCP OAuth state token generation
     oauth-state.ts        # signed Composio OAuth state token generation
-    composio.ts           # Composio MCP integration (toolkit auth, server lifecycle)
+    composio.ts           # Composio MCP integration (toolkit auth, server lifecycle, shared discovery helpers)
     plugins.ts            # plugin discovery + file fetching (GitHub, caching)
     github.ts             # GitHub API client (tree, content, write access, atomic push)
     agents.ts             # agent loading helper
@@ -123,9 +125,16 @@ sdk/                      # TypeScript SDK (published as `@getcatalystiq/agentpl
     streaming.ts          # NDJSON parser + RunStream (AsyncIterable)
     resources/
       runs.ts             # create, createAndWait, get, list, cancel, transcript
-      agents.ts           # CRUD
+      agents.ts           # CRUD + nested skills/plugins/connectors/customConnectors
+      skills.ts           # agent skill CRUD (list, get, create, update, delete)
+      plugins.ts          # agent plugin management (list, add, remove)
+      connectors.ts       # Composio connector management (list, saveApiKey, initiateOauth, availableToolkits/Tools)
+      custom-connectors.ts # MCP custom connector management (listServers, list, delete, updateAllowedTools, listTools, initiateOauth)
+      plugin-marketplaces.ts # marketplace discovery (list, listPlugins) — admin-only for mutations
     index.ts              # public exports
-  tests/                  # SDK unit tests (vitest)
+  tests/
+    helpers.ts            # shared test utilities (createClient, jsonOk, jsonError)
+    resources/            # per-resource unit tests (vitest)
 ```
 
 ## Database
@@ -198,3 +207,6 @@ All routes (except `/api/health`) require `Authorization: Bearer <api_key>`. Adm
 - Sandbox network policy allowlists: AI Gateway, Composio, Firecrawl, GitHub, npm registry, platform API, custom MCP servers
 - Max 10 concurrent runs per tenant; atomic concurrent run check prevents TOCTOU races
 - Transcript viewer renders markdown via `react-markdown` + `remark-gfm`; HTML sanitized with `dompurify`
+- SDK resource namespaces: `client.runs`, `client.agents`, `client.connectors`, `client.customConnectors`, `client.pluginMarketplaces`; agents nests `skills`, `plugins`, `connectors`, `customConnectors`
+- JSONB array mutations use atomic SQL guards (`NOT EXISTS` for uniqueness, `jsonb_array_length` for limits) to prevent TOCTOU races
+- Composio discovery helpers (`listComposioToolkits`, `listComposioTools`) are shared between admin and tenant routes via `src/lib/composio.ts`; tool pagination capped at 10 pages
