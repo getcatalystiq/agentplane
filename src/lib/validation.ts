@@ -53,6 +53,7 @@ export const CreatePluginMarketplaceSchema = z.object({
   name: z.string().min(1).max(100),
   github_repo: z.string()
     .regex(/^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/, "Must be owner/repo format"),
+  github_token: z.string().min(1).optional(),
 });
 
 export const PluginMarketplaceRow = z.object({

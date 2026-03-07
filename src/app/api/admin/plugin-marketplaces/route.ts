@@ -5,6 +5,7 @@ import { withErrorHandler } from "@/lib/api";
 import { ConflictError } from "@/lib/errors";
 import { fetchRepoTree } from "@/lib/github";
 import { getEnv } from "@/lib/env";
+import { encrypt } from "@/lib/crypto";
 
 export const dynamic = "force-dynamic";
 
@@ -31,22 +32,28 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     throw new ConflictError(`Marketplace already registered: ${input.github_repo}`);
   }
 
-  // Validate repo exists by fetching its tree
-  let token: string | undefined;
-  try {
-    token = getEnv().GITHUB_TOKEN;
-  } catch { /* no token available */ }
+  // Use provided token, fall back to global env token
+  const token = input.github_token ?? getEnv().GITHUB_TOKEN;
 
+  // Validate repo exists by fetching its tree
   const [owner, repo] = input.github_repo.split("/");
   const treeResult = await fetchRepoTree(owner, repo, token);
   if (!treeResult.ok) {
     throw new ConflictError(`Cannot access GitHub repo: ${treeResult.message}`);
   }
 
+  // If a token was provided, encrypt and store it
+  let githubTokenEnc: string | null = null;
+  if (input.github_token) {
+    const env = getEnv();
+    const encrypted = await encrypt(input.github_token, env.ENCRYPTION_KEY);
+    githubTokenEnc = JSON.stringify(encrypted);
+  }
+
   const marketplace = await queryOne(
     PluginMarketplaceRow,
-    `INSERT INTO plugin_marketplaces (name, github_repo) VALUES ($1, $2) RETURNING *`,
-    [input.name, input.github_repo],
+    `INSERT INTO plugin_marketplaces (name, github_repo, github_token_enc) VALUES ($1, $2, $3) RETURNING *`,
+    [input.name, input.github_repo, githubTokenEnc],
   );
 
   return NextResponse.json(marketplace, { status: 201 });

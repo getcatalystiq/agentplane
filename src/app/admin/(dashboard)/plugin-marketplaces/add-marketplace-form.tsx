@@ -11,7 +11,8 @@ export function AddMarketplaceForm() {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [form, setForm] = useState({ name: "", github_repo: "" });
+  const [form, setForm] = useState({ name: "", github_repo: "", github_token: "" });
+  const [showTokenHelp, setShowTokenHelp] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -21,7 +22,11 @@ export function AddMarketplaceForm() {
       const res = await fetch("/api/admin/plugin-marketplaces", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          name: form.name,
+          github_repo: form.github_repo,
+          ...(form.github_token && { github_token: form.github_token }),
+        }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -30,7 +35,7 @@ export function AddMarketplaceForm() {
       }
       await res.json();
       setOpen(false);
-      setForm({ name: "", github_repo: "" });
+      setForm({ name: "", github_repo: "", github_token: "" });
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
@@ -66,6 +71,39 @@ export function AddMarketplaceForm() {
                 required
               />
               <p className="text-xs text-muted-foreground mt-1">Format: owner/repo</p>
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <label className="text-xs font-medium text-muted-foreground">GitHub Token (optional, required for private repos)</label>
+                <button
+                  type="button"
+                  onClick={() => setShowTokenHelp((v) => !v)}
+                  className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-muted-foreground/40 text-muted-foreground text-[10px] leading-none hover:bg-muted/50 transition-colors"
+                  title="How to create a token"
+                >
+                  ?
+                </button>
+              </div>
+              <Input
+                type="password"
+                value={form.github_token}
+                onChange={(e) => setForm((f) => ({ ...f, github_token: e.target.value }))}
+                placeholder="ghp_... or github_pat_..."
+                className="mt-1"
+              />
+              {showTokenHelp && (
+                <div className="text-xs text-muted-foreground mt-2 rounded-md border border-border bg-muted/30 p-2.5 space-y-1">
+                  <p className="font-medium">How to create a fine-grained token:</p>
+                  <ol className="list-decimal list-inside space-y-0.5 text-[11px]">
+                    <li>Go to <a href="https://github.com/settings/tokens?type=beta" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">GitHub &rarr; Settings &rarr; Fine-grained tokens</a></li>
+                    <li>Click <strong>Generate new token</strong></li>
+                    <li>Set a name and expiration</li>
+                    <li>Under <strong>Repository access</strong>, select the marketplace repo</li>
+                    <li>Under <strong>Permissions &rarr; Repository permissions</strong>, set <strong>Contents</strong> to <strong>Read and write</strong></li>
+                    <li>Click <strong>Generate token</strong> and paste it above</li>
+                  </ol>
+                </div>
+              )}
             </div>
             {error && <p className="text-xs text-red-500">{error}</p>}
             <div className="flex justify-end gap-2 pt-2">
