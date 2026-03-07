@@ -14,9 +14,10 @@ export const dynamic = "force-dynamic";
 export default async function PluginEditorPage({
   params,
 }: {
-  params: Promise<{ marketplaceId: string; pluginName: string }>;
+  params: Promise<{ marketplaceId: string; pluginName: string[] }>;
 }) {
-  const { marketplaceId, pluginName } = await params;
+  const { marketplaceId, pluginName: pluginNameSegments } = await params;
+  const pluginName = pluginNameSegments.join("/");
 
   const marketplace = await queryOne(
     PluginMarketplaceRow,

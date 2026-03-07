@@ -8,12 +8,13 @@ import { NotFoundError, ValidationError } from "@/lib/errors";
 export const dynamic = "force-dynamic";
 
 const MarketplaceIdSchema = z.string().uuid();
-const PluginNameSchema = z.string().min(1).max(100).regex(/^[a-z0-9-]+$/);
+const PluginNameSchema = z.string().min(1).max(200).regex(/^[a-zA-Z0-9/_-]+$/);
 
 // DELETE /api/agents/:agentId/plugins/:marketplaceId/:pluginName — remove a plugin
 export const DELETE = withErrorHandler(async (request: NextRequest, context) => {
   const auth = await authenticateApiKey(request.headers.get("authorization"));
-  const { agentId, marketplaceId, pluginName } = await context!.params;
+  const { agentId, marketplaceId, pluginName: pluginNameSegments } = await context!.params;
+  const pluginName = Array.isArray(pluginNameSegments) ? pluginNameSegments.join("/") : pluginNameSegments;
 
   // Validate path params
   const mpResult = MarketplaceIdSchema.safeParse(marketplaceId);

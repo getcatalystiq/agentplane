@@ -30,7 +30,8 @@ export function errorResponse(error: unknown): NextResponse {
   );
 }
 
-type RouteContext = { params: Promise<Record<string, string>> };
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type RouteContext = { params: Promise<Record<string, any>> };
 
 export type RouteHandler = (
   request: NextRequest,

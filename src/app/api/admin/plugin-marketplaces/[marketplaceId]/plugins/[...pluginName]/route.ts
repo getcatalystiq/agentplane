@@ -11,7 +11,7 @@ import { z } from "zod";
 
 export const dynamic = "force-dynamic";
 
-type RouteContext = { params: Promise<{ marketplaceId: string; pluginName: string }> };
+type RouteContext = { params: Promise<{ marketplaceId: string; pluginName: string[] }> };
 
 async function getMarketplaceToken(marketplace: z.infer<typeof PluginMarketplaceRow>): Promise<string | undefined> {
   if (!marketplace.github_token_enc) return undefined;
@@ -28,7 +28,8 @@ async function getMarketplaceToken(marketplace: z.infer<typeof PluginMarketplace
  * GET — Fetch full plugin content for the editor.
  */
 export const GET = withErrorHandler(async (_request: NextRequest, context) => {
-  const { marketplaceId, pluginName } = await (context as RouteContext).params;
+  const { marketplaceId, pluginName: pluginNameSegments } = await (context as RouteContext).params;
+  const pluginName = pluginNameSegments.join("/");
 
   const marketplace = await queryOne(
     PluginMarketplaceRow,
@@ -105,7 +106,8 @@ const SavePluginSchema = z.object({
 });
 
 export const PUT = withErrorHandler(async (request: NextRequest, context) => {
-  const { marketplaceId, pluginName } = await (context as RouteContext).params;
+  const { marketplaceId, pluginName: pluginNameSegments } = await (context as RouteContext).params;
+  const pluginName = pluginNameSegments.join("/");
 
   const marketplace = await queryOne(
     PluginMarketplaceRow,
