@@ -84,7 +84,7 @@ export const UpdateMarketplaceSchema = z.object({
 // Agent plugin config (stored in agents.plugins JSONB)
 export const AgentPluginSchema = z.object({
   marketplace_id: z.string().uuid(),
-  plugin_name: z.string().min(1).max(100).regex(/^[a-z0-9-]+$/),
+  plugin_name: z.string().min(1).max(200).regex(/^[a-zA-Z0-9/_-]+$/),
 });
 
 export const AgentPluginsSchema = z.array(AgentPluginSchema)
