@@ -185,7 +185,7 @@ The app runs at [http://localhost:3000](http://localhost:3000):
 | `BLOB_READ_WRITE_TOKEN` | No | Vercel Blob token for transcript + asset storage |
 | `COMPOSIO_API_KEY` | No | Composio API key for MCP tool integrations |
 | `GITHUB_TOKEN` | No | GitHub API token for plugin marketplace access (5000 req/hr vs 60) |
-| `CRON_SECRET` | No | Vercel Cron authentication (auto-set in production) |
+| `CRON_SECRET` | Yes | Vercel Cron authentication |
 
 ## API Authentication
 
