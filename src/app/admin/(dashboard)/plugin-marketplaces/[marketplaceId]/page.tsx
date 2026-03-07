@@ -5,6 +5,8 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { queryOne } from "@/db";
 import { PluginMarketplaceRow } from "@/lib/validation";
 import { listPlugins } from "@/lib/plugins";
+import { decrypt } from "@/lib/crypto";
+import { getEnv } from "@/lib/env";
 import { TokenConfig } from "./token-config";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +26,16 @@ export default async function MarketplaceDetailPage({
   if (!marketplace) notFound();
 
   const isOwned = marketplace.github_token_enc !== null;
-  const pluginsResult = await listPlugins(marketplace.github_repo);
+
+  let token: string | undefined;
+  if (marketplace.github_token_enc) {
+    try {
+      const env = getEnv();
+      token = await decrypt(JSON.parse(marketplace.github_token_enc), env.ENCRYPTION_KEY, env.ENCRYPTION_KEY_PREVIOUS);
+    } catch { /* fall through to global token */ }
+  }
+
+  const pluginsResult = await listPlugins(marketplace.github_repo, token);
 
   return (
     <div className="space-y-6">

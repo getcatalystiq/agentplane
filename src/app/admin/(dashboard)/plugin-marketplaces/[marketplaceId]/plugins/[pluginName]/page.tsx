@@ -11,14 +11,6 @@ import { PluginEditorClient } from "./plugin-editor-client";
 
 export const dynamic = "force-dynamic";
 
-function getGlobalToken(): string | undefined {
-  try {
-    return getEnv().GITHUB_TOKEN;
-  } catch {
-    return undefined;
-  }
-}
-
 export default async function PluginEditorPage({
   params,
 }: {
@@ -35,18 +27,14 @@ export default async function PluginEditorPage({
 
   const isOwned = marketplace.github_token_enc !== null;
 
-  // Get token (marketplace-specific or global)
+  // Get token from marketplace
   let token: string | undefined;
   if (marketplace.github_token_enc) {
     try {
       const env = getEnv();
       const encrypted = JSON.parse(marketplace.github_token_enc);
       token = await decrypt(encrypted, env.ENCRYPTION_KEY, env.ENCRYPTION_KEY_PREVIOUS);
-    } catch {
-      token = getGlobalToken();
-    }
-  } else {
-    token = getGlobalToken();
+    } catch { /* no token available */ }
   }
 
   const [owner, repo] = marketplace.github_repo.split("/");

@@ -126,7 +126,6 @@ ENCRYPTION_KEY="64-hex-chars-from-openssl-rand"
 
 # Optional
 # COMPOSIO_API_KEY="your-composio-api-key"          # for Composio toolkit integrations
-# GITHUB_TOKEN="ghp_..."                            # for plugin marketplace access (5000 req/hr vs 60)
 # ENCRYPTION_KEY_PREVIOUS="old-64-hex-chars"        # for seamless key rotation
 # CRON_SECRET="vercel-cron-secret"                  # auto-set by Vercel in production
 ```
@@ -184,7 +183,6 @@ The app runs at [http://localhost:3000](http://localhost:3000):
 | `ENCRYPTION_KEY_PREVIOUS` | No | Previous encryption key for seamless rotation |
 | `BLOB_READ_WRITE_TOKEN` | No | Vercel Blob token for transcript + asset storage |
 | `COMPOSIO_API_KEY` | No | Composio API key for MCP tool integrations |
-| `GITHUB_TOKEN` | No | GitHub API token for plugin marketplace access (5000 req/hr vs 60) |
 | `CRON_SECRET` | Yes | Vercel Cron authentication |
 
 ## API Authentication

@@ -163,7 +163,6 @@ Neon Postgres with Row-Level Security (RLS). Tables: `tenants`, `api_keys`, `age
 | `ENCRYPTION_KEY_PREVIOUS` | No | 64 hex chars; supports seamless key rotation |
 | `BLOB_READ_WRITE_TOKEN` | No | Vercel Blob (transcript + asset storage) |
 | `COMPOSIO_API_KEY` | No | Composio MCP tool integration (optional if not using Composio toolkits) |
-| `GITHUB_TOKEN` | No | GitHub API auth (5000 req/hr vs 60 unauthenticated); used for plugin marketplace access |
 | `CRON_SECRET` | No | Vercel Cron authentication (auto-set in production) |
 
 ## API Authentication

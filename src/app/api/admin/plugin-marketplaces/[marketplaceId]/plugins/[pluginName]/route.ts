@@ -13,22 +13,14 @@ export const dynamic = "force-dynamic";
 
 type RouteContext = { params: Promise<{ marketplaceId: string; pluginName: string }> };
 
-function getGlobalToken(): string | undefined {
-  try {
-    return getEnv().GITHUB_TOKEN;
-  } catch {
-    return undefined;
-  }
-}
-
 async function getMarketplaceToken(marketplace: z.infer<typeof PluginMarketplaceRow>): Promise<string | undefined> {
-  if (!marketplace.github_token_enc) return getGlobalToken();
+  if (!marketplace.github_token_enc) return undefined;
   try {
     const env = getEnv();
     const encrypted = JSON.parse(marketplace.github_token_enc);
     return await decrypt(encrypted, env.ENCRYPTION_KEY, env.ENCRYPTION_KEY_PREVIOUS);
   } catch {
-    return getGlobalToken();
+    return undefined;
   }
 }
 

@@ -32,8 +32,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     throw new ConflictError(`Marketplace already registered: ${input.github_repo}`);
   }
 
-  // Use provided token, fall back to global env token
-  const token = input.github_token ?? getEnv().GITHUB_TOKEN;
+  // Use provided token for repo validation
+  const token = input.github_token;
 
   // Validate repo exists by fetching its tree
   const [owner, repo] = input.github_repo.split("/");

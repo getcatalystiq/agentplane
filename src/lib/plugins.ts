@@ -13,6 +13,7 @@ import { fetchRepoTree, fetchRawContent } from "./github";
 import type { GitHubTreeEntry, GitHubResult } from "./github";
 import { PluginManifestSchema, PluginMcpJsonSchema, SafePluginFilename, PluginMarketplaceRow } from "./validation";
 import { query } from "@/db";
+import { decrypt } from "./crypto";
 import { getEnv } from "./env";
 import { logger } from "./logger";
 import { z } from "zod";
@@ -110,20 +111,23 @@ function parseGithubRepo(githubRepo: string): { owner: string; repo: string } {
   return { owner, repo };
 }
 
-function getToken(): string | undefined {
-  try {
-    return getEnv().GITHUB_TOKEN;
-  } catch {
-    return undefined;
+/** Decrypt a marketplace's stored token. */
+async function getMarketplaceToken(marketplace: z.infer<typeof PluginMarketplaceRow>): Promise<string | undefined> {
+  if (marketplace.github_token_enc) {
+    try {
+      const env = getEnv();
+      return await decrypt(JSON.parse(marketplace.github_token_enc), env.ENCRYPTION_KEY, env.ENCRYPTION_KEY_PREVIOUS);
+    } catch { /* decryption failed */ }
   }
+  return undefined;
 }
 
-async function getTree(githubRepo: string): Promise<GitHubResult<GitHubTreeEntry[]>> {
+async function getTree(githubRepo: string, token?: string): Promise<GitHubResult<GitHubTreeEntry[]>> {
   const cached = getCachedTree(githubRepo);
   if (cached) return { ok: true, data: cached };
 
   const { owner, repo } = parseGithubRepo(githubRepo);
-  const result = await fetchRepoTree(owner, repo, getToken());
+  const result = await fetchRepoTree(owner, repo, token);
   if (result.ok) {
     setCachedTree(githubRepo, result.data);
   }
@@ -136,8 +140,8 @@ async function getTree(githubRepo: string): Promise<GitHubResult<GitHubTreeEntry
  * List available plugins in a marketplace repo.
  * Identifies top-level directories with .claude-plugin/plugin.json.
  */
-export async function listPlugins(githubRepo: string): Promise<GitHubResult<PluginListItem[]>> {
-  const treeResult = await getTree(githubRepo);
+export async function listPlugins(githubRepo: string, marketplaceToken?: string): Promise<GitHubResult<PluginListItem[]>> {
+  const treeResult = await getTree(githubRepo, marketplaceToken);
   if (!treeResult.ok) return treeResult;
 
   const tree = treeResult.data;
@@ -152,7 +156,7 @@ export async function listPlugins(githubRepo: string): Promise<GitHubResult<Plug
   }
 
   const { owner, repo } = parseGithubRepo(githubRepo);
-  const token = getToken();
+  const token = marketplaceToken;
   const plugins: PluginListItem[] = [];
 
   for (const dir of pluginDirs) {
@@ -223,7 +227,11 @@ export async function fetchPluginContent(
 
   // Process each marketplace
   for (const [githubRepo, marketplacePlugins] of byMarketplace) {
-    const treeResult = await getTree(githubRepo);
+    // Find the marketplace row to get its token
+    const marketplace = marketplaces.find(m => m.github_repo === githubRepo);
+    const token = marketplace ? await getMarketplaceToken(marketplace) : undefined;
+
+    const treeResult = await getTree(githubRepo, token);
     if (!treeResult.ok) {
       result.warnings.push(`Failed to fetch ${githubRepo}: ${treeResult.message}`);
       continue;
@@ -231,7 +239,6 @@ export async function fetchPluginContent(
 
     const tree = treeResult.data;
     const { owner, repo } = parseGithubRepo(githubRepo);
-    const token = getToken();
 
     // Fetch files for each plugin in this marketplace
     for (const plugin of marketplacePlugins) {
@@ -356,7 +363,7 @@ export async function fetchPluginMcpSuggestions(
     if (!marketplace) continue;
 
     const { owner, repo } = parseGithubRepo(marketplace.github_repo);
-    const token = getToken();
+    const token = await getMarketplaceToken(marketplace);
 
     const contentResult = await fetchRawContent(
       owner,
