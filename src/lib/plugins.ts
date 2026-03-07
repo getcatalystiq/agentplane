@@ -146,10 +146,10 @@ export async function listPlugins(githubRepo: string, marketplaceToken?: string)
 
   const tree = treeResult.data;
 
-  // Find directories that have .claude-plugin/plugin.json
+  // Find directories that have .claude-plugin/plugin.json (at any nesting depth)
   const pluginDirs = new Set<string>();
   for (const entry of tree) {
-    const match = entry.path.match(/^([^/]+)\/.claude-plugin\/plugin\.json$/);
+    const match = entry.path.match(/^(.+)\/.claude-plugin\/plugin\.json$/);
     if (match && entry.type === "blob") {
       pluginDirs.add(match[1]);
     }
