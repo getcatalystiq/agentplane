@@ -84,7 +84,7 @@ export default async function TenantDetailPage({
       <ApiKeysSection tenantId={tenantId} initialKeys={apiKeys} />
 
       {/* Agents table */}
-      <div className="rounded-lg border border-border p-5">
+      <div className="rounded-lg border border-muted-foreground/25 p-5">
         <SectionHeader title="Agents">
           <AddAgentForm tenants={[{ id: tenant.id, name: tenant.name }]} defaultTenantId={tenant.id} />
         </SectionHeader>
@@ -118,7 +118,7 @@ export default async function TenantDetailPage({
       </div>
 
       {/* Runs */}
-      <div className="rounded-lg border border-border p-5">
+      <div className="rounded-lg border border-muted-foreground/25 p-5">
         <SectionHeader title="Runs" />
         <AdminTable footer={
           <PaginationBar

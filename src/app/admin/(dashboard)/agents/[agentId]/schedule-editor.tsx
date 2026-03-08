@@ -99,7 +99,7 @@ export function ScheduleEditor({ agentId, initialSchedule, timezone }: ScheduleE
   }
 
   return (
-    <div className="rounded-lg border border-border p-5">
+    <div className="rounded-lg border border-muted-foreground/25 p-5">
       <SectionHeader title="Schedule">
         <div className="flex items-center gap-3">
           {canEnable && (

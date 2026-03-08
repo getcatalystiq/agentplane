@@ -70,7 +70,7 @@ export function ApiKeysSection({ tenantId, initialKeys }: { tenantId: string; in
   const revokedKeys = initialKeys.filter((k) => k.revoked_at);
 
   return (
-    <div className="rounded-lg border border-border p-5">
+    <div className="rounded-lg border border-muted-foreground/25 p-5">
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-lg font-semibold">API Keys</h2>
         <Button size="sm" onClick={() => setShowCreate(!showCreate)}>

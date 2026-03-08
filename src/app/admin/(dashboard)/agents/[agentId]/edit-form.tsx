@@ -64,7 +64,7 @@ export function AgentEditForm({ agent }: { agent: Agent }) {
   }
 
   return (
-    <div className="rounded-lg border border-border p-5">
+    <div className="rounded-lg border border-muted-foreground/25 p-5">
       <SectionHeader title="Details">
         <Button onClick={handleSave} disabled={saving || !isDirty} size="sm">
           {saving ? "Saving..." : "Save Changes"}

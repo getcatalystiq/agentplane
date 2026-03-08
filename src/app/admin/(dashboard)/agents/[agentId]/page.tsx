@@ -92,7 +92,7 @@ export default async function AgentDetailPage({
       />
 
       {/* Runs */}
-      <div className="rounded-lg border border-border p-5">
+      <div className="rounded-lg border border-muted-foreground/25 p-5">
         <SectionHeader title="Runs" />
         <AdminTable footer={
           <PaginationBar

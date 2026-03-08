@@ -51,7 +51,7 @@ export function SkillsEditor({ agentId, initialSkills }: { agentId: string; init
   }
 
   return (
-    <div className="rounded-lg border border-border p-5">
+    <div className="rounded-lg border border-muted-foreground/25 p-5">
     <FileTreeEditor
       initialFiles={flatFiles}
       onSave={handleSave}
