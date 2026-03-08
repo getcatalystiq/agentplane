@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { SectionHeader } from "@/components/ui/section-header";
 import { FormField } from "@/components/ui/form-field";
-import { isValidTimezone } from "@/lib/timezone";
 
 interface Tenant {
   id: string;
@@ -17,6 +16,65 @@ interface Tenant {
   timezone: string;
 }
 
+const TIMEZONES = [
+  "UTC",
+  "America/New_York",
+  "America/Chicago",
+  "America/Denver",
+  "America/Los_Angeles",
+  "America/Anchorage",
+  "America/Phoenix",
+  "America/Toronto",
+  "America/Vancouver",
+  "America/Mexico_City",
+  "America/Sao_Paulo",
+  "America/Argentina/Buenos_Aires",
+  "America/Bogota",
+  "America/Lima",
+  "America/Santiago",
+  "Europe/London",
+  "Europe/Paris",
+  "Europe/Berlin",
+  "Europe/Amsterdam",
+  "Europe/Madrid",
+  "Europe/Rome",
+  "Europe/Zurich",
+  "Europe/Stockholm",
+  "Europe/Oslo",
+  "Europe/Helsinki",
+  "Europe/Warsaw",
+  "Europe/Prague",
+  "Europe/Vienna",
+  "Europe/Athens",
+  "Europe/Bucharest",
+  "Europe/Moscow",
+  "Europe/Istanbul",
+  "Asia/Dubai",
+  "Asia/Kolkata",
+  "Asia/Bangkok",
+  "Asia/Singapore",
+  "Asia/Hong_Kong",
+  "Asia/Shanghai",
+  "Asia/Seoul",
+  "Asia/Tokyo",
+  "Asia/Jakarta",
+  "Asia/Karachi",
+  "Asia/Dhaka",
+  "Asia/Riyadh",
+  "Asia/Tehran",
+  "Australia/Sydney",
+  "Australia/Melbourne",
+  "Australia/Perth",
+  "Australia/Brisbane",
+  "Pacific/Auckland",
+  "Pacific/Fiji",
+  "Pacific/Honolulu",
+  "Africa/Cairo",
+  "Africa/Lagos",
+  "Africa/Johannesburg",
+  "Africa/Nairobi",
+];
+
 export function TenantEditForm({ tenant }: { tenant: Tenant }) {
   const router = useRouter();
   const [name, setName] = useState(tenant.name);
@@ -24,8 +82,6 @@ export function TenantEditForm({ tenant }: { tenant: Tenant }) {
   const [status, setStatus] = useState(tenant.status);
   const [timezone, setTimezone] = useState(tenant.timezone);
   const [saving, setSaving] = useState(false);
-  const [timezoneError, setTimezoneError] = useState<string | null>(null);
-
   const isDirty =
     name !== tenant.name ||
     status !== tenant.status ||
@@ -33,11 +89,6 @@ export function TenantEditForm({ tenant }: { tenant: Tenant }) {
     timezone !== tenant.timezone;
 
   async function handleSave() {
-    if (!isValidTimezone(timezone)) {
-      setTimezoneError("Invalid timezone");
-      return;
-    }
-    setTimezoneError(null);
     setSaving(true);
     try {
       await fetch(`/api/admin/tenants/${tenant.id}`, {
@@ -58,7 +109,7 @@ export function TenantEditForm({ tenant }: { tenant: Tenant }) {
 
   return (
     <div>
-      <SectionHeader title="Edit Tenant" />
+      <SectionHeader title="Details" />
       <div>
         <div className="grid grid-cols-4 gap-4">
           <FormField label="Name">
@@ -73,12 +124,12 @@ export function TenantEditForm({ tenant }: { tenant: Tenant }) {
               <option value="suspended">suspended</option>
             </Select>
           </FormField>
-          <FormField label="Timezone" error={timezoneError}>
-            <Input
-              value={timezone}
-              onChange={(e) => { setTimezone(e.target.value); setTimezoneError(null); }}
-              placeholder="UTC"
-            />
+          <FormField label="Timezone">
+            <Select value={timezone} onChange={(e) => setTimezone(e.target.value)}>
+              {TIMEZONES.map((tz) => (
+                <option key={tz} value={tz}>{tz.replace(/_/g, " ")}</option>
+              ))}
+            </Select>
           </FormField>
         </div>
         <div className="mt-4 flex justify-end">
