@@ -8,9 +8,9 @@ const navItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/tenants", label: "Tenants", icon: Users },
   { href: "/admin/agents", label: "Agents", icon: Bot },
-  { href: "/admin/runs", label: "Runs", icon: Play },
   { href: "/admin/mcp-servers", label: "Custom Connectors", icon: Plug },
   { href: "/admin/plugin-marketplaces", label: "Plugins", icon: Store },
+  { href: "/admin/runs", label: "Runs", icon: Play },
 ];
 
 export function SidebarNav() {
