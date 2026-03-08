@@ -9,11 +9,14 @@ A multi-tenant platform for running [Claude Agent SDK](https://docs.anthropic.co
 - **Claude Agent SDK inside** — full agent with tool use, file editing, and bash running in an isolated sandbox
 - **Isolated sandboxes** — every run spins up a fresh Vercel Sandbox with its own filesystem, network policy, and resource limits
 - **Skills & plugins** — inject custom skills and marketplace plugins into agents before execution
+- **Scheduled runs** — configure agents to run on a schedule (hourly, daily, weekdays, weekly) with timezone-aware execution
 - **Multi-tenant** — row-level security, per-tenant API keys, budget controls, and rate limiting
 - **MCP connectors** — connect agents to external tools via Composio (GitHub, Slack, Firecrawl) or custom OAuth 2.1 MCP servers
-- **Full observability** — every run stores a transcript, token usage, cost, and duration
+- **Full observability** — every run stores a transcript, token usage, cost, duration, and trigger source (API/schedule/playground)
+- **Playground** — test agents interactively from the admin dashboard with real-time event streaming
+- **Configurable runtime** — set max runtime per agent (60–3600 seconds)
 - **TypeScript SDK** — `@getcatalystiq/agentplane` npm package with streaming, auto-polling, and typed events
-- **Admin dashboard** — manage tenants, agents, runs, connectors, and plugins with analytics charts
+- **Admin dashboard** — manage tenants, agents, runs, connectors, plugins, and schedules with analytics charts
 
 ## How It Works
 
@@ -183,7 +186,7 @@ The app runs at [http://localhost:3000](http://localhost:3000):
 | `ENCRYPTION_KEY_PREVIOUS` | No | Previous encryption key for seamless rotation |
 | `BLOB_READ_WRITE_TOKEN` | No | Vercel Blob token for transcript + asset storage |
 | `COMPOSIO_API_KEY` | No | Composio API key for MCP tool integrations |
-| `CRON_SECRET` | Yes | Vercel Cron authentication |
+| `CRON_SECRET` | Yes | Vercel Cron authentication (auto-set in production) |
 
 ## API Authentication
 
@@ -235,7 +238,7 @@ API keys are hashed with SHA-256 and optionally encrypted at rest with AES-256-G
 | | `/api/admin/mcp-servers/*` | Custom MCP server CRUD |
 | | `/api/admin/plugin-marketplaces/*` | Marketplace CRUD + plugin listing + file editing |
 | | `/api/admin/tenants/*` | Tenant CRUD + API key management |
-| | `/api/admin/runs/*` | Admin run viewing |
+| | `/api/admin/runs/*` | Admin run viewing + cancellation |
 
 ## Deployment
 
@@ -266,7 +269,8 @@ The app is deployed on Vercel.
 For this to work, `DATABASE_URL_UNPOOLED` (or `DATABASE_URL_DIRECT`) must be set in Vercel's environment variables for the **build** environment. If you linked Neon via the Vercel integration, `DATABASE_URL_UNPOOLED` is set automatically.
 
 Vercel Cron jobs are configured in `vercel.json`:
-- **Sandbox cleanup** — every 15 minutes
+- **Scheduled runs** — every minute (dispatches due agent runs)
+- **Sandbox cleanup** — every 5 minutes
 - **Transcript cleanup** — daily at 3:00 AM UTC
 - **Budget reset** — daily at midnight UTC
 
