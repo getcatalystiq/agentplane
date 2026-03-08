@@ -46,32 +46,30 @@ export async function buildMcpConfig(
       );
       if (mcpConfig) {
         const mcpUrl = mcpConfig.url;
-        const mcpApiKey = mcpConfig.apiKey;
 
         // Persist server info so future runs can update rather than recreate.
-        const encData = await encrypt(mcpApiKey, env.ENCRYPTION_KEY);
         await execute(
           `UPDATE agents
            SET composio_mcp_server_id   = $1,
                composio_mcp_server_name = $2,
-               composio_mcp_url         = $3,
-               composio_mcp_api_key_enc = $4
-           WHERE id = $5 AND tenant_id = $6`,
+               composio_mcp_url         = $3
+           WHERE id = $4 AND tenant_id = $5`,
           [
             mcpConfig.serverId,
             mcpConfig.serverName,
             mcpUrl,
-            JSON.stringify(encData),
             agent.id,
             tenantId,
           ],
         );
 
-        // Composio uses SSE transport; API key passed via x-api-key header
+        // Composio uses SSE transport; authenticate with the account-level
+        // COMPOSIO_API_KEY (the URL itself has no embedded apiKey).
+        const composioApiKey = process.env.COMPOSIO_API_KEY;
         servers.composio = {
           type: "sse",
           url: mcpUrl,
-          ...(mcpApiKey ? { headers: { "x-api-key": mcpApiKey } } : {}),
+          ...(composioApiKey ? { headers: { "x-api-key": composioApiKey } } : {}),
         };
       }
     } catch (err) {
