@@ -4,13 +4,18 @@ import { withErrorHandler, jsonResponse } from "@/lib/api";
 import { verifyCronSecret } from "@/lib/cron-auth";
 import { AgentRowInternal, TenantRow } from "@/lib/validation";
 import { createRun } from "@/lib/runs";
-import { executeRunInBackground } from "@/lib/run-executor";
+import { prepareRunExecution } from "@/lib/run-executor";
 import { logger } from "@/lib/logger";
 import { z } from "zod";
 import type { AgentId, RunId, TenantId } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 300;
+
+function getPlatformApiUrl(request: NextRequest): string {
+  const vercelUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  if (vercelUrl) return `https://${vercelUrl}`;
+  return new URL(request.url).origin;
+}
 
 const ExecuteSchema = z.object({
   agent_id: z.string().uuid(),
@@ -55,25 +60,29 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   const effectiveBudget = Math.min(agent.max_budget_usd, remainingBudget);
 
-  // Execute synchronously — this function has its own maxDuration: 300
+  // Start the sandbox — the detached runner handles execution and uploads
+  // the transcript via /api/internal/runs/:id/transcript when complete.
+  // Same pattern as regular runs: prepareRunExecution creates the sandbox,
+  // transitions to "running", and the sandbox runs independently.
   try {
-    await executeRunInBackground({
+    await prepareRunExecution({
       agent,
       tenantId,
       runId,
       prompt: agent.schedule_prompt!,
-      platformApiUrl: new URL(request.url).origin,
+      platformApiUrl: getPlatformApiUrl(request),
       effectiveBudget,
       effectiveMaxTurns: agent.max_turns,
     });
   } catch (err) {
-    logger.error("Scheduled run execution failed", {
+    logger.error("Scheduled run sandbox creation failed", {
       agent_id,
       run_id: runId,
       error: err instanceof Error ? err.message : String(err),
     });
+    return jsonResponse({ status: "failed", run_id: runId, reason: "sandbox_creation_error" });
   }
 
-  logger.info("Scheduled run completed", { agent_id, run_id: runId });
-  return jsonResponse({ status: "completed", run_id: runId });
+  logger.info("Scheduled run started", { agent_id, run_id: runId });
+  return jsonResponse({ status: "triggered", run_id: runId });
 });

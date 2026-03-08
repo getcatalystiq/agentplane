@@ -5,7 +5,7 @@ import { authenticateAdminFromCookie } from "@/lib/admin-auth";
 // Paths that don't require authentication.
 // NOTE: Uses prefix matching via startsWith — any new routes under these
 // prefixes will also bypass auth. Cron routes use CRON_SECRET verification instead.
-const PUBLIC_PATHS = ["/api/health", "/api/cron/"];
+const PUBLIC_PATHS = ["/api/health", "/api/cron/", "/api/internal/"];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname.startsWith(p));

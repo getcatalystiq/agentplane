@@ -4,6 +4,7 @@ import { fetchPluginContent } from "@/lib/plugins";
 import { transitionRunStatus } from "@/lib/runs";
 import { uploadTranscript } from "@/lib/transcripts";
 import { processLineAssets } from "@/lib/assets";
+import { generateRunToken } from "@/lib/crypto";
 import { logger } from "@/lib/logger";
 import { getEnv } from "@/lib/env";
 import type { AgentInternal } from "@/lib/validation";
@@ -48,13 +49,17 @@ export async function prepareRunExecution(
     logger.warn("Plugin fetch warnings", { run_id: runId, warnings: pluginResult.warnings });
   }
 
+  const env = getEnv();
+  const runToken = await generateRunToken(runId, env.ENCRYPTION_KEY);
+
   const sandbox = await createSandbox({
     agent: { ...agent, max_budget_usd: effectiveBudget, max_turns: effectiveMaxTurns },
     tenantId,
     runId,
     prompt,
     platformApiUrl,
-    aiGatewayApiKey: getEnv().AI_GATEWAY_API_KEY,
+    runToken,
+    aiGatewayApiKey: env.AI_GATEWAY_API_KEY,
     mcpServers: mcpResult.servers,
     mcpErrors: mcpResult.errors,
     pluginFiles: [...pluginResult.skillFiles, ...pluginResult.commandFiles],
