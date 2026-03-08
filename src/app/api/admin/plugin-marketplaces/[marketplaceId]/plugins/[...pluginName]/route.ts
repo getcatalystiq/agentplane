@@ -3,7 +3,7 @@ import { queryOne } from "@/db";
 import { PluginMarketplaceRow, PluginMcpJsonSchema, SafePluginFilename } from "@/lib/validation";
 import { withErrorHandler } from "@/lib/api";
 import { NotFoundError, ForbiddenError, ConflictError, ValidationError } from "@/lib/errors";
-import { fetchRepoTree, fetchRawContent, pushFiles, getDefaultBranch } from "@/lib/github";
+import { fetchRepoTree, fetchFileContent, pushFiles, getDefaultBranch } from "@/lib/github";
 import { clearPluginCache, cacheRecentPush } from "@/lib/plugins";
 import { decrypt } from "@/lib/crypto";
 import { getEnv } from "@/lib/env";
@@ -66,17 +66,17 @@ export const GET = withErrorHandler(async (_request: NextRequest, context) => {
   // Fetch all file contents in parallel
   const [skillResults, commandResults, mcpJsonResult] = await Promise.all([
     Promise.all(skillEntries.map(async (entry) => {
-      const contentResult = await fetchRawContent(owner, repo, entry.path, token);
+      const contentResult = await fetchFileContent(owner, repo, entry.path, token);
       if (!contentResult.ok) return null;
       return { path: entry.path.replace(`${pluginName}/skills/`, ""), content: contentResult.data };
     })),
     Promise.all(commandEntries.map(async (entry) => {
-      const contentResult = await fetchRawContent(owner, repo, entry.path, token);
+      const contentResult = await fetchFileContent(owner, repo, entry.path, token);
       if (!contentResult.ok) return null;
       return { path: entry.path.replace(`${pluginName}/commands/`, ""), content: contentResult.data };
     })),
     mcpJsonEntry
-      ? fetchRawContent(owner, repo, mcpJsonEntry.path, token).then(r => r.ok ? r.data : null)
+      ? fetchFileContent(owner, repo, mcpJsonEntry.path, token).then(r => r.ok ? r.data : null)
       : Promise.resolve(null),
   ]);
 

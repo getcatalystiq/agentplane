@@ -2,8 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { queryOne } from "@/db";
 import { PluginMarketplaceRow, PluginManifestSchema } from "@/lib/validation";
-import { fetchRepoTree, fetchRawContent } from "@/lib/github";
-import { getCachedContent } from "@/lib/plugins";
+import { fetchRepoTree, fetchFileContent } from "@/lib/github";
 import { Badge } from "@/components/ui/badge";
 import { getEnv } from "@/lib/env";
 import { decrypt } from "@/lib/crypto";
@@ -52,7 +51,7 @@ export default async function PluginEditorPage({
   const tree = treeResult.data;
 
   // Fetch plugin manifest for display name
-  const manifestResult = await fetchRawContent(owner, repo, `${pluginName}/.claude-plugin/plugin.json`, token);
+  const manifestResult = await fetchFileContent(owner, repo, `${pluginName}/.claude-plugin/plugin.json`, token);
   let displayName = pluginName;
   if (manifestResult.ok) {
     try {
@@ -61,13 +60,9 @@ export default async function PluginEditorPage({
     } catch { /* use pluginName */ }
   }
 
-  const githubRepo = marketplace.github_repo;
-
-  // Helper: use recently-pushed content cache before falling back to GitHub CDN
+  // Helper: fetch via GitHub Contents API (always fresh, unlike CDN)
   async function getContent(filePath: string): Promise<string | null> {
-    const cached = getCachedContent(githubRepo, filePath);
-    if (cached !== null) return cached;
-    const result = await fetchRawContent(owner, repo, filePath, token);
+    const result = await fetchFileContent(owner, repo, filePath, token);
     return result.ok ? result.data : null;
   }
 

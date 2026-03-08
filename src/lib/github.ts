@@ -94,6 +94,8 @@ export async function fetchRepoTree(
 
 /**
  * Fetch raw file content from raw.githubusercontent.com (CDN, not rate-limited).
+ * Note: CDN may serve stale content for minutes after a push. Use fetchFileContent()
+ * when freshness is required (e.g. after editing).
  * Validates content is valid UTF-8 text (rejects binary/control characters).
  */
 export async function fetchRawContent(
@@ -129,6 +131,61 @@ export async function fetchRawContent(
   }
 
   // Enforce per-file size limit (100KB)
+  if (content.length > 100_000) {
+    return { ok: false, error: "parse_error", message: `File exceeds 100KB limit: ${filePath} (${content.length} bytes)` };
+  }
+
+  return { ok: true, data: content };
+}
+
+/**
+ * Fetch file content via the GitHub Contents API (always fresh, rate-limited).
+ * Use this instead of fetchRawContent() when you need the latest version immediately after a push.
+ */
+export async function fetchFileContent(
+  owner: string,
+  repo: string,
+  filePath: string,
+  token?: string,
+): Promise<GitHubResult<string>> {
+  const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${filePath}`;
+
+  let response: Response;
+  try {
+    response = await fetch(url, { headers: buildHeaders(token) });
+  } catch (err) {
+    return { ok: false, error: "server_error", message: `Network error: ${err instanceof Error ? err.message : String(err)}` };
+  }
+
+  if (response.status === 404) {
+    return { ok: false, error: "not_found", message: `File not found: ${filePath}` };
+  }
+  if (response.status === 403 || response.status === 429) {
+    return { ok: false, error: "rate_limited", message: "GitHub API rate limited" };
+  }
+  if (!response.ok) {
+    return { ok: false, error: "server_error", message: `GitHub API error: ${response.status}` };
+  }
+
+  let json: Record<string, unknown>;
+  try {
+    json = await response.json();
+  } catch {
+    return { ok: false, error: "parse_error", message: "Invalid JSON from GitHub API" };
+  }
+
+  const encoding = json.encoding as string | undefined;
+  const rawContent = json.content as string | undefined;
+  if (!rawContent || encoding !== "base64") {
+    return { ok: false, error: "parse_error", message: `Unexpected encoding: ${encoding}` };
+  }
+
+  const content = Buffer.from(rawContent, "base64").toString("utf-8");
+
+  if (/[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(content)) {
+    return { ok: false, error: "parse_error", message: `File contains non-text content: ${filePath}` };
+  }
+
   if (content.length > 100_000) {
     return { ok: false, error: "parse_error", message: `File exceeds 100KB limit: ${filePath} (${content.length} bytes)` };
   }
