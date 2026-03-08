@@ -67,13 +67,11 @@ export async function buildMcpConfig(
           ],
         );
 
-        // Composio uses SSE transport and expects the API key as a query param
-        const composioUrl = mcpApiKey
-          ? `${mcpUrl}${mcpUrl.includes("?") ? "&" : "?"}apiKey=${mcpApiKey}`
-          : mcpUrl;
+        // Composio uses SSE transport; API key passed via x-api-key header
         servers.composio = {
           type: "sse",
-          url: composioUrl,
+          url: mcpUrl,
+          ...(mcpApiKey ? { headers: { "x-api-key": mcpApiKey } } : {}),
         };
       }
     } catch (err) {
