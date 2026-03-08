@@ -216,8 +216,70 @@ export default function PlaygroundPage({ params }: { params: Promise<{ agentId: 
     if (el) el.scrollTop = el.scrollHeight;
   }, [events, streamingText]);
 
-  async function pollForCompletion(runId: string) {
+  async function reconnectToStream(runId: string, eventOffset: number) {
     setPolling(true);
+
+    try {
+      const res = await fetch(`/api/admin/runs/${runId}/stream?offset=${eventOffset}`, {
+        signal: abortRef.current?.signal,
+      });
+
+      if (!res.ok) {
+        // Fallback: if stream reconnect fails, poll for final result
+        await pollForFinalResult(runId);
+        return;
+      }
+
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          try {
+            const event = JSON.parse(trimmed) as PlaygroundEvent;
+            if (event.type === "heartbeat") continue;
+
+            if (event.type === "stream_detached") {
+              // Server detached again — reconnect with new offset
+              const newOffset = typeof event.offset === "number" ? event.offset : eventOffset;
+              reconnectToStream(runId, newOffset);
+              return;
+            }
+
+            if (event.type === "text_delta") {
+              setStreamingText((prev) => prev + (event.text as string ?? ""));
+            } else {
+              if (event.type === "assistant") setStreamingText("");
+              setEvents((prev) => [...prev, event]);
+            }
+          } catch {
+            // Skip non-JSON lines
+          }
+        }
+      }
+    } catch (err) {
+      if ((err as Error)?.name === "AbortError") return;
+      // Connection lost — try polling as fallback
+      await pollForFinalResult(runId);
+      return;
+    } finally {
+      setPolling(false);
+      setRunning(false);
+      abortRef.current = null;
+    }
+  }
+
+  async function pollForFinalResult(runId: string) {
     let delay = 3000;
     const maxDelay = 10_000;
 
@@ -240,10 +302,8 @@ export default function PlaygroundPage({ params }: { params: Promise<{ agentId: 
         const run = data.run;
 
         if (TERMINAL_STATUSES.has(run.status)) {
-          // Append transcript events that came after the stream detached
           const transcript = data.transcript as PlaygroundEvent[] | undefined;
           if (transcript && transcript.length > 0) {
-            // Find the stream_detached event in the transcript and take everything after it
             const detachIdx = transcript.findIndex((ev) => ev.type === "stream_detached");
             const eventsAfterDetach = detachIdx >= 0 ? transcript.slice(detachIdx + 1) : [];
             const newEvents = eventsAfterDetach.filter(
@@ -259,7 +319,6 @@ export default function PlaygroundPage({ params }: { params: Promise<{ agentId: 
             }
           }
 
-          // If no result event was added from the transcript, synthesize one
           setEvents((prev) => {
             if (prev.some((ev) => ev.type === "result")) return prev;
             const syntheticResult: PlaygroundEvent = {
@@ -281,7 +340,7 @@ export default function PlaygroundPage({ params }: { params: Promise<{ agentId: 
       }
     } catch (err) {
       if ((err as Error)?.name !== "AbortError") {
-        setError("Lost connection while polling for results");
+        setError("Lost connection while waiting for results");
       }
     } finally {
       setPolling(false);
@@ -303,7 +362,10 @@ export default function PlaygroundPage({ params }: { params: Promise<{ agentId: 
     abortRef.current = abort;
 
     let runId: string | null = null;
-    let handedOffToPolling = false;
+    let handedOffToReconnect = false;
+    // Track transcript event count (events stored in sandbox transcript.ndjson)
+    // text_delta is not stored in transcript, everything else is
+    let transcriptEventCount = 0;
 
     try {
       const res = await fetch(`/api/admin/agents/${agentId}/runs`, {
@@ -346,15 +408,19 @@ export default function PlaygroundPage({ params }: { params: Promise<{ agentId: 
             } else if (event.type === "stream_detached") {
               setStreamingText("");
               setEvents((prev) => [...prev, event]);
-              // Start polling for completion
+              // Reconnect to sandbox stream for live updates
               if (runId) {
-                handedOffToPolling = true;
-                pollForCompletion(runId);
-                return; // Exit stream reading, polling takes over
+                handedOffToReconnect = true;
+                reconnectToStream(runId, transcriptEventCount);
+                return;
               }
             } else {
               if (event.type === "assistant") setStreamingText("");
               setEvents((prev) => [...prev, event]);
+              // Count events that go into the transcript (not text_delta, not heartbeat)
+              if (event.type !== "heartbeat") {
+                transcriptEventCount++;
+              }
             }
           } catch {
             // Skip non-JSON lines
@@ -366,7 +432,7 @@ export default function PlaygroundPage({ params }: { params: Promise<{ agentId: 
         setError(err instanceof Error ? err.message : "Unknown error");
       }
     } finally {
-      if (!handedOffToPolling) {
+      if (!handedOffToReconnect) {
         setRunning(false);
         abortRef.current = null;
       }
@@ -425,7 +491,7 @@ export default function PlaygroundPage({ params }: { params: Promise<{ agentId: 
           )}
           {running && !streamingText && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span className="animate-pulse">●</span> {polling ? "Run continues in background, waiting for results…" : "Running…"}
+              <span className="animate-pulse">●</span> {polling ? "Reconnected to sandbox, streaming updates…" : "Running…"}
             </div>
           )}
         </div>
