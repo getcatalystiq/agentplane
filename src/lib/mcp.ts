@@ -13,7 +13,7 @@ import type { AgentInternal } from "./validation";
 import type { AgentId, TenantId, McpServerId, McpConnectionId } from "./types";
 
 export interface McpServerConfig {
-  type: "http";
+  type: "http" | "sse";
   url: string;
   headers?: Record<string, string>;
 }
@@ -67,12 +67,12 @@ export async function buildMcpConfig(
           ],
         );
 
-        // Composio expects the API key as a query param, not a header
+        // Composio uses SSE transport and expects the API key as a query param
         const composioUrl = mcpApiKey
           ? `${mcpUrl}${mcpUrl.includes("?") ? "&" : "?"}apiKey=${mcpApiKey}`
           : mcpUrl;
         servers.composio = {
-          type: "http",
+          type: "sse",
           url: composioUrl,
         };
       }
