@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import CodeMirror from "@uiw/react-codemirror";
 import { json } from "@codemirror/lang-json";
 import { oneDark } from "@codemirror/theme-one-dark";
@@ -27,6 +28,7 @@ export function PluginEditorClient({
   initialMcpJson,
   readOnly,
 }: PluginEditorClientProps) {
+  const router = useRouter();
   const [skills, setSkills] = useState(initialSkills);
   const [commands, setCommands] = useState(initialCommands);
   const [mcpJson, setMcpJson] = useState(initialMcpJson ?? "");
@@ -34,6 +36,7 @@ export function PluginEditorClient({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [savedVersion, setSavedVersion] = useState(0);
 
   const handleSkillsChange = useCallback((updated: FlatFile[]) => {
     setSkills(updated);
@@ -70,6 +73,9 @@ export function PluginEditorClient({
 
       const data = await res.json();
       setSuccess(`Saved (commit ${data.commitSha.slice(0, 7)})`);
+      setSavedVersion((v) => v + 1);
+      // Invalidate Next.js RSC cache so reloads fetch fresh data
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -126,6 +132,7 @@ export function PluginEditorClient({
           title="Skills"
           addFolderLabel="Skill"
           newFileTemplate={{ filename: "SKILL.md", content: "# New\n\nDescribe this skill...\n" }}
+          savedVersion={savedVersion}
         />
       )}
 
@@ -139,6 +146,7 @@ export function PluginEditorClient({
           title="Commands"
           addFolderLabel="Command"
           newFileTemplate={{ filename: "command.md", content: "# New Command\n\nDescribe this command...\n" }}
+          savedVersion={savedVersion}
         />
       )}
 

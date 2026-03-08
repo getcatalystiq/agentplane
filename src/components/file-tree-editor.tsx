@@ -131,6 +131,8 @@ interface FileTreeEditorProps {
   saveLabel?: string;
   addFolderLabel?: string;
   newFileTemplate?: { filename: string; content: string };
+  /** Increment to mark current files as saved (resets dirty state) */
+  savedVersion?: number;
 }
 
 export function FileTreeEditor({
@@ -143,6 +145,7 @@ export function FileTreeEditor({
   saveLabel = "Save",
   addFolderLabel = "Folder",
   newFileTemplate = { filename: "SKILL.md", content: "# New\n\nDescribe this...\n" },
+  savedVersion,
 }: FileTreeEditorProps) {
   const [files, setFiles] = useState<FlatFile[]>(initialFiles);
   const [selectedPath, setSelectedPath] = useState<string | null>(
@@ -157,27 +160,36 @@ export function FileTreeEditor({
   const [newFolderName, setNewFolderName] = useState("");
   const [addingFileInDir, setAddingFileInDir] = useState<string | null>(null);
   const [newFileName, setNewFileName] = useState("");
-  const savedSnapshot = useRef(JSON.stringify(initialFiles));
+  const [savedSnapshot, setSavedSnapshot] = useState(() => JSON.stringify(initialFiles));
 
   useEffect(() => {
-    savedSnapshot.current = JSON.stringify(initialFiles);
+    const snap = JSON.stringify(initialFiles);
+    setSavedSnapshot(snap);
     setFiles(initialFiles);
     // Expand all dirs when initialFiles changes
     const { rootDirs } = buildTree(initialFiles);
     setExpanded(collectAllDirPaths(rootDirs));
   }, [initialFiles]);
 
+  // Reset dirty state when parent signals a successful save
+  useEffect(() => {
+    if (savedVersion !== undefined && savedVersion > 0) {
+      setSavedSnapshot(JSON.stringify(files));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedVersion]);
+
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   useEffect(() => {
-    if (onChangeRef.current && JSON.stringify(files) !== savedSnapshot.current) {
+    if (onChangeRef.current && JSON.stringify(files) !== savedSnapshot) {
       onChangeRef.current(files);
     }
-  }, [files]);
+  }, [files, savedSnapshot]);
 
   const isDirty = useMemo(
-    () => JSON.stringify(files) !== savedSnapshot.current,
-    [files],
+    () => JSON.stringify(files) !== savedSnapshot,
+    [files, savedSnapshot],
   );
 
   const tree = useMemo(() => buildTree(files), [files]);
