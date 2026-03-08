@@ -13,7 +13,7 @@ import type { AgentInternal } from "./validation";
 import type { AgentId, TenantId, McpServerId, McpConnectionId } from "./types";
 
 export interface McpServerConfig {
-  type: "http";
+  type: "http" | "sse";
   url: string;
   headers?: Record<string, string>;
 }
@@ -46,32 +46,31 @@ export async function buildMcpConfig(
       );
       if (mcpConfig) {
         const mcpUrl = mcpConfig.url;
-        const mcpApiKey = mcpConfig.apiKey;
 
         // Persist server info so future runs can update rather than recreate.
-        const encData = await encrypt(mcpApiKey, env.ENCRYPTION_KEY);
         await execute(
           `UPDATE agents
            SET composio_mcp_server_id   = $1,
                composio_mcp_server_name = $2,
-               composio_mcp_url         = $3,
-               composio_mcp_api_key_enc = $4
-           WHERE id = $5 AND tenant_id = $6`,
+               composio_mcp_url         = $3
+           WHERE id = $4 AND tenant_id = $5`,
           [
             mcpConfig.serverId,
             mcpConfig.serverName,
             mcpUrl,
-            JSON.stringify(encData),
             agent.id,
             tenantId,
           ],
         );
 
-        // Pass API key via headers instead of URL query param to avoid logging leaks
+        // Composio supports streamable HTTP (POST → /mcp); use type "http"
+        // which maps to the MCP streamable-HTTP transport in the SDK.
+        // Authenticate with the account-level COMPOSIO_API_KEY header.
+        const composioApiKey = process.env.COMPOSIO_API_KEY;
         servers.composio = {
           type: "http",
           url: mcpUrl,
-          ...(mcpApiKey ? { headers: { "x-api-key": mcpApiKey } } : {}),
+          ...(composioApiKey ? { headers: { "x-api-key": composioApiKey } } : {}),
         };
       }
     } catch (err) {

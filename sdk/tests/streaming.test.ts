@@ -230,7 +230,8 @@ describe("RunStream", () => {
     });
 
     // First iteration
-    for await (const _ of stream) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    for await (const _event of stream) {
       // consume
     }
 
@@ -241,11 +242,7 @@ describe("RunStream", () => {
   });
 
   it("aborts fetch on early break", async () => {
-    let aborted = false;
     const controller = new AbortController();
-    controller.signal.addEventListener("abort", () => {
-      aborted = true;
-    });
 
     const response = mockResponse([
       '{"type":"run_started","run_id":"r1","agent_id":"a1","model":"claude","timestamp":"2026-01-01T00:00:00Z"}\n',

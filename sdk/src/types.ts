@@ -320,7 +320,7 @@ export type RawStreamEvent =
 
 // --- Known Event Types ---
 
-const KNOWN_EVENT_TYPES = new Set([
+export const KNOWN_EVENT_TYPES = new Set([
   "run_started",
   "text_delta",
   "assistant",

@@ -9,7 +9,7 @@ const EnvSchema = z.object({
   BLOB_READ_WRITE_TOKEN: z.string().optional(),
 
   // Vercel Cron
-  CRON_SECRET: z.string().optional(),
+  CRON_SECRET: z.string().min(1, "CRON_SECRET is required"),
 
   // Platform security
   ENCRYPTION_KEY: z.string().length(64, "ENCRYPTION_KEY must be 64 hex chars (32 bytes)"),
@@ -18,9 +18,6 @@ const EnvSchema = z.object({
 
   // Composio
   COMPOSIO_API_KEY: z.string().optional(),
-
-  // GitHub (for plugin marketplace API calls — 5000 req/hr vs 60 unauthenticated)
-  GITHUB_TOKEN: z.string().min(1).optional(),
 
   // Vercel AI Gateway
   AI_GATEWAY_API_KEY: z.string().min(1, "AI_GATEWAY_API_KEY is required"),

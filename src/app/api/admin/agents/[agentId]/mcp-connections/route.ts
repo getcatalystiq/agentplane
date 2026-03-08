@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withErrorHandler } from "@/lib/api";
 import { queryOne, query } from "@/db";
-import { AgentRow, McpConnectionRow, McpServerRow } from "@/lib/validation";
+import { AgentRow, McpConnectionRow } from "@/lib/validation";
 import { NotFoundError } from "@/lib/errors";
-import type { AgentId, TenantId } from "@/lib/types";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";

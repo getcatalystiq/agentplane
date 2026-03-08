@@ -106,7 +106,7 @@ describe("createNdjsonStream - heartbeat", () => {
     const reader = stream.getReader();
 
     // Trigger first pull (sets up timers)
-    const firstRead = reader.read();
+    void reader.read();
 
     // Advance time to trigger heartbeat
     await vi.advanceTimersByTimeAsync(15_001);

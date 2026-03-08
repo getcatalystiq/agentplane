@@ -5,7 +5,7 @@ import { getAgentForTenant } from "@/lib/agents";
 import { NotFoundError } from "@/lib/errors";
 import { deleteConnection, updateAllowedTools } from "@/lib/mcp-connections";
 import { UpdateMcpConnectionSchema } from "@/lib/validation";
-import type { AgentId, McpServerId, TenantId } from "@/lib/types";
+import type { AgentId, McpServerId } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 

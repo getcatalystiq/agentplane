@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { z } from "zod";
 import { NotFoundError, RateLimitError, AppError } from "@/lib/errors";
 

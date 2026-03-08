@@ -34,6 +34,7 @@ export function PluginEditorClient({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [savedVersion, setSavedVersion] = useState(0);
 
   const handleSkillsChange = useCallback((updated: FlatFile[]) => {
     setSkills(updated);
@@ -70,6 +71,7 @@ export function PluginEditorClient({
 
       const data = await res.json();
       setSuccess(`Saved (commit ${data.commitSha.slice(0, 7)})`);
+      setSavedVersion((v) => v + 1);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -106,7 +108,7 @@ export function PluginEditorClient({
         </div>
         {!readOnly && (
           <div className="flex items-center gap-3 ml-auto pb-2">
-            {error && <span className="text-xs text-red-500">{error}</span>}
+            {error && <span className="text-xs text-destructive">{error}</span>}
             {success && <span className="text-xs text-green-500">{success}</span>}
             <Button size="sm" onClick={handleSaveAll} disabled={saving}>
               {saving ? "Pushing to GitHub..." : "Save All to GitHub"}
@@ -126,6 +128,7 @@ export function PluginEditorClient({
           title="Skills"
           addFolderLabel="Skill"
           newFileTemplate={{ filename: "SKILL.md", content: "# New\n\nDescribe this skill...\n" }}
+          savedVersion={savedVersion}
         />
       )}
 
@@ -139,6 +142,7 @@ export function PluginEditorClient({
           title="Commands"
           addFolderLabel="Command"
           newFileTemplate={{ filename: "command.md", content: "# New Command\n\nDescribe this command...\n" }}
+          savedVersion={savedVersion}
         />
       )}
 

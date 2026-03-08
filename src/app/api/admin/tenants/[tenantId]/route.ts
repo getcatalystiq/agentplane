@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryOne, query, execute } from "@/db";
-import { TenantRow, AgentRow, RunRow } from "@/lib/validation";
+import { TenantRow, AgentRow, RunRow, TimezoneSchema } from "@/lib/validation";
 import { withErrorHandler } from "@/lib/api";
 import { z } from "zod";
 
@@ -35,6 +35,7 @@ const UpdateTenantSchema = z.object({
   status: z.enum(["active", "suspended"]).optional(),
   monthly_budget_usd: z.number().min(0).optional(),
   name: z.string().min(1).max(255).optional(),
+  timezone: TimezoneSchema.optional(),
 });
 
 export const PATCH = withErrorHandler(async (request: NextRequest, context) => {
@@ -57,6 +58,10 @@ export const PATCH = withErrorHandler(async (request: NextRequest, context) => {
   if (input.name !== undefined) {
     sets.push(`name = $${idx++}`);
     params.push(input.name);
+  }
+  if (input.timezone !== undefined) {
+    sets.push(`timezone = $${idx++}`);
+    params.push(input.timezone);
   }
 
   if (sets.length === 0) {

@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { SectionHeader } from "@/components/ui/section-header";
+import { FormField } from "@/components/ui/form-field";
 
 const MODELS = [
   { value: "claude-opus-4-6", label: "Claude Opus 4.6" },
@@ -21,6 +22,7 @@ interface Agent {
   permission_mode: string;
   max_turns: number;
   max_budget_usd: number;
+  max_runtime_seconds: number;
 }
 
 export function AgentEditForm({ agent }: { agent: Agent }) {
@@ -31,6 +33,7 @@ export function AgentEditForm({ agent }: { agent: Agent }) {
   const [permissionMode, setPermissionMode] = useState(agent.permission_mode);
   const [maxTurns, setMaxTurns] = useState(agent.max_turns.toString());
   const [maxBudget, setMaxBudget] = useState(agent.max_budget_usd.toString());
+  const [maxRuntime, setMaxRuntime] = useState(Math.floor(agent.max_runtime_seconds / 60).toString());
   const [saving, setSaving] = useState(false);
 
   const isDirty =
@@ -39,7 +42,8 @@ export function AgentEditForm({ agent }: { agent: Agent }) {
     model !== agent.model ||
     permissionMode !== agent.permission_mode ||
     maxTurns !== agent.max_turns.toString() ||
-    maxBudget !== agent.max_budget_usd.toString();
+    maxBudget !== agent.max_budget_usd.toString() ||
+    maxRuntime !== Math.floor(agent.max_runtime_seconds / 60).toString();
 
   async function handleSave() {
     setSaving(true);
@@ -54,6 +58,7 @@ export function AgentEditForm({ agent }: { agent: Agent }) {
           permission_mode: permissionMode,
           max_turns: parseInt(maxTurns),
           max_budget_usd: parseFloat(maxBudget),
+          max_runtime_seconds: parseInt(maxRuntime) * 60,
         }),
       });
       router.refresh();
@@ -63,59 +68,70 @@ export function AgentEditForm({ agent }: { agent: Agent }) {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Details</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className="rounded-lg border border-muted-foreground/25 p-5">
+      <SectionHeader title="Details">
+        <Button onClick={handleSave} disabled={saving || !isDirty} size="sm">
+          {saving ? "Saving..." : "Save Changes"}
+        </Button>
+      </SectionHeader>
+      <div>
         <div className="grid grid-cols-12 gap-4">
-          <div className="col-span-2 space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Name</label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} />
+          <div className="col-span-2">
+            <FormField label="Name">
+              <Input value={name} onChange={(e) => setName(e.target.value)} />
+            </FormField>
           </div>
-          <div className="col-span-4 space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Description</label>
-            <Input
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="What does this agent do?"
-            />
+          <div className="col-span-3">
+            <FormField label="Description">
+              <Input
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="What does this agent do?"
+              />
+            </FormField>
           </div>
-          <div className="col-span-2 space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Model</label>
-            <Select value={model} onChange={(e) => setModel(e.target.value)}>
-              {MODELS.map((m) => (
-                <option key={m.value} value={m.value}>{m.label}</option>
-              ))}
-            </Select>
+          <div className="col-span-2">
+            <FormField label="Model">
+              <Select value={model} onChange={(e) => setModel(e.target.value)}>
+                {MODELS.map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </Select>
+            </FormField>
           </div>
-          <div className="col-span-1 space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Max Turns</label>
-            <Input type="number" min="1" max="1000" value={maxTurns} onChange={(e) => setMaxTurns(e.target.value)} />
+          <div className="col-span-1">
+            <FormField label="Max Turns">
+              <Input type="number" min="1" max="1000" value={maxTurns} onChange={(e) => setMaxTurns(e.target.value)} />
+            </FormField>
           </div>
-          <div className="col-span-1 space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Max Budget</label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
-              <Input type="number" step="0.01" min="0.01" max="100" value={maxBudget} onChange={(e) => setMaxBudget(e.target.value)} className="pl-6" />
-            </div>
+          <div className="col-span-1">
+            <FormField label="Max Budget">
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
+                <Input type="number" step="0.01" min="0.01" max="100" value={maxBudget} onChange={(e) => setMaxBudget(e.target.value)} className="pl-6" />
+              </div>
+            </FormField>
           </div>
-          <div className="col-span-2 space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Permission Mode</label>
-            <Select value={permissionMode} onChange={(e) => setPermissionMode(e.target.value)}>
-              <option value="default">default</option>
-              <option value="acceptEdits">acceptEdits</option>
-              <option value="bypassPermissions">bypassPermissions</option>
-              <option value="plan">plan</option>
-            </Select>
+          <div className="col-span-1">
+            <FormField label="Max Runtime">
+              <div className="relative">
+                <Input type="number" min="1" max="60" value={maxRuntime} onChange={(e) => setMaxRuntime(e.target.value)} className="pr-10" />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">min</span>
+              </div>
+            </FormField>
+          </div>
+          <div className="col-span-2">
+            <FormField label="Permission Mode">
+              <Select value={permissionMode} onChange={(e) => setPermissionMode(e.target.value)}>
+                <option value="default">default</option>
+                <option value="acceptEdits">acceptEdits</option>
+                <option value="bypassPermissions">bypassPermissions</option>
+                <option value="plan">plan</option>
+              </Select>
+            </FormField>
           </div>
         </div>
-        <div className="flex justify-end">
-          <Button onClick={handleSave} disabled={saving || !isDirty} size="sm">
-            {saving ? "Saving..." : "Save Changes"}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

@@ -3,7 +3,7 @@ import { queryOne } from "@/db";
 import { PluginMarketplaceRow, PluginMcpJsonSchema, SafePluginFilename } from "@/lib/validation";
 import { withErrorHandler } from "@/lib/api";
 import { NotFoundError, ForbiddenError, ConflictError, ValidationError } from "@/lib/errors";
-import { fetchRepoTree, fetchRawContent, pushFiles, getDefaultBranch } from "@/lib/github";
+import { fetchRepoTree, fetchFileContent, pushFiles, getDefaultBranch } from "@/lib/github";
 import { clearPluginCache, cacheRecentPush } from "@/lib/plugins";
 import { decrypt } from "@/lib/crypto";
 import { getEnv } from "@/lib/env";
@@ -11,24 +11,16 @@ import { z } from "zod";
 
 export const dynamic = "force-dynamic";
 
-type RouteContext = { params: Promise<{ marketplaceId: string; pluginName: string }> };
-
-function getGlobalToken(): string | undefined {
-  try {
-    return getEnv().GITHUB_TOKEN;
-  } catch {
-    return undefined;
-  }
-}
+type RouteContext = { params: Promise<{ marketplaceId: string; pluginName: string[] }> };
 
 async function getMarketplaceToken(marketplace: z.infer<typeof PluginMarketplaceRow>): Promise<string | undefined> {
-  if (!marketplace.github_token_enc) return getGlobalToken();
+  if (!marketplace.github_token_enc) return undefined;
   try {
     const env = getEnv();
     const encrypted = JSON.parse(marketplace.github_token_enc);
     return await decrypt(encrypted, env.ENCRYPTION_KEY, env.ENCRYPTION_KEY_PREVIOUS);
   } catch {
-    return getGlobalToken();
+    return undefined;
   }
 }
 
@@ -36,7 +28,8 @@ async function getMarketplaceToken(marketplace: z.infer<typeof PluginMarketplace
  * GET — Fetch full plugin content for the editor.
  */
 export const GET = withErrorHandler(async (_request: NextRequest, context) => {
-  const { marketplaceId, pluginName } = await (context as RouteContext).params;
+  const { marketplaceId, pluginName: pluginNameSegments } = await (context as RouteContext).params;
+  const pluginName = pluginNameSegments.join("/");
 
   const marketplace = await queryOne(
     PluginMarketplaceRow,
@@ -73,17 +66,17 @@ export const GET = withErrorHandler(async (_request: NextRequest, context) => {
   // Fetch all file contents in parallel
   const [skillResults, commandResults, mcpJsonResult] = await Promise.all([
     Promise.all(skillEntries.map(async (entry) => {
-      const contentResult = await fetchRawContent(owner, repo, entry.path, token);
+      const contentResult = await fetchFileContent(owner, repo, entry.path, token);
       if (!contentResult.ok) return null;
       return { path: entry.path.replace(`${pluginName}/skills/`, ""), content: contentResult.data };
     })),
     Promise.all(commandEntries.map(async (entry) => {
-      const contentResult = await fetchRawContent(owner, repo, entry.path, token);
+      const contentResult = await fetchFileContent(owner, repo, entry.path, token);
       if (!contentResult.ok) return null;
       return { path: entry.path.replace(`${pluginName}/commands/`, ""), content: contentResult.data };
     })),
     mcpJsonEntry
-      ? fetchRawContent(owner, repo, mcpJsonEntry.path, token).then(r => r.ok ? r.data : null)
+      ? fetchFileContent(owner, repo, mcpJsonEntry.path, token).then(r => r.ok ? r.data : null)
       : Promise.resolve(null),
   ]);
 
@@ -113,7 +106,8 @@ const SavePluginSchema = z.object({
 });
 
 export const PUT = withErrorHandler(async (request: NextRequest, context) => {
-  const { marketplaceId, pluginName } = await (context as RouteContext).params;
+  const { marketplaceId, pluginName: pluginNameSegments } = await (context as RouteContext).params;
+  const pluginName = pluginNameSegments.join("/");
 
   const marketplace = await queryOne(
     PluginMarketplaceRow,

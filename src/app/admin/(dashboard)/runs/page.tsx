@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { PaginationBar, parsePaginationParams } from "@/components/ui/pagination-bar";
 import { RunStatusBadge } from "@/components/ui/run-status-badge";
+import { RunSourceBadge } from "@/components/ui/run-source-badge";
+import { AdminTable, AdminTableHead, AdminTableRow, Th, EmptyRow } from "@/components/ui/admin-table";
 import { LocalDate } from "@/components/local-date";
 import { query, queryOne } from "@/db";
+import { RunTriggeredBySchema } from "@/lib/validation";
 import { z } from "zod";
 
 const RunWithContext = z.object({
@@ -18,6 +21,7 @@ const RunWithContext = z.object({
   duration_ms: z.coerce.number(),
   total_input_tokens: z.coerce.number(),
   total_output_tokens: z.coerce.number(),
+  triggered_by: RunTriggeredBySchema.default("api"),
   error_type: z.string().nullable(),
   started_at: z.coerce.string().nullable(),
   completed_at: z.coerce.string().nullable(),
@@ -38,7 +42,7 @@ export default async function RunsPage({
     query(
       RunWithContext,
       `SELECT r.id, r.agent_id, a.name AS agent_name, r.tenant_id, t.name AS tenant_name,
-         r.status, r.prompt, r.cost_usd, r.num_turns, r.duration_ms,
+         r.status, r.triggered_by, r.prompt, r.cost_usd, r.num_turns, r.duration_ms,
          r.total_input_tokens, r.total_output_tokens, r.error_type,
          r.started_at, r.completed_at, r.created_at
        FROM runs r
@@ -62,64 +66,60 @@ export default async function RunsPage({
   return (
     <div>
       <h1 className="text-2xl font-semibold mb-6">Runs</h1>
-      <div className="rounded-lg border border-border overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border bg-muted/50">
-              <th className="text-left p-3 font-medium">Run</th>
-              <th className="text-left p-3 font-medium">Agent</th>
-              <th className="text-left p-3 font-medium">Tenant</th>
-              <th className="text-left p-3 font-medium">Status</th>
-              <th className="text-left p-3 font-medium max-w-xs">Prompt</th>
-              <th className="text-right p-3 font-medium">Cost</th>
-              <th className="text-right p-3 font-medium">Turns</th>
-              <th className="text-right p-3 font-medium">Duration</th>
-              <th className="text-left p-3 font-medium">Created</th>
-            </tr>
-          </thead>
-          <tbody>
-            {runs.map((r) => (
-              <tr key={r.id} className="border-b border-border hover:bg-muted/30 transition-colors">
-                <td className="p-3 font-mono text-xs">
-                  <Link href={`/admin/runs/${r.id}`} className="text-primary hover:underline">
-                    {r.id.slice(0, 8)}...
-                  </Link>
-                </td>
-                <td className="p-3 text-xs">{r.agent_name}</td>
-                <td className="p-3">
-                  <Link href={`/admin/tenants/${r.tenant_id}`} className="text-primary hover:underline text-xs">
-                    {r.tenant_name}
-                  </Link>
-                </td>
-                <td className="p-3"><RunStatusBadge status={r.status} /></td>
-                <td className="p-3 max-w-xs truncate text-muted-foreground text-xs" title={r.prompt}>
-                  {r.prompt.slice(0, 80)}{r.prompt.length > 80 ? "..." : ""}
-                </td>
-                <td className="p-3 text-right font-mono">${r.cost_usd.toFixed(4)}</td>
-                <td className="p-3 text-right">{r.num_turns}</td>
-                <td className="p-3 text-right text-muted-foreground">
-                  {r.duration_ms > 0 ? `${(r.duration_ms / 1000).toFixed(1)}s` : "—"}
-                </td>
-                <td className="p-3 text-muted-foreground text-xs">
-                  <LocalDate value={r.created_at} />
-                </td>
-              </tr>
-            ))}
-            {runs.length === 0 && (
-              <tr>
-                <td colSpan={9} className="p-8 text-center text-muted-foreground">No runs found</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      <AdminTable className="overflow-x-auto" footer={
         <PaginationBar
           page={page}
           pageSize={pageSize}
           total={total}
           buildHref={(p, ps) => `/admin/runs?page=${p}&pageSize=${ps}`}
         />
-      </div>
+      }>
+        <AdminTableHead>
+          <Th>Run</Th>
+          <Th>Agent</Th>
+          <Th>Tenant</Th>
+          <Th>Status</Th>
+          <Th>Source</Th>
+          <Th className="max-w-xs">Prompt</Th>
+          <Th align="right">Cost</Th>
+          <Th align="right">Turns</Th>
+          <Th align="right">Duration</Th>
+          <Th>Created</Th>
+        </AdminTableHead>
+        <tbody>
+          {runs.map((r) => (
+            <AdminTableRow key={r.id}>
+              <td className="p-3 font-mono text-xs">
+                <Link href={`/admin/runs/${r.id}`} className="text-primary hover:underline">
+                  {r.id.slice(0, 8)}...
+                </Link>
+              </td>
+              <td className="p-3 text-xs">{r.agent_name}</td>
+              <td className="p-3">
+                <Link href={`/admin/tenants/${r.tenant_id}`} className="text-primary hover:underline text-xs">
+                  {r.tenant_name}
+                </Link>
+              </td>
+              <td className="p-3"><RunStatusBadge status={r.status} /></td>
+              <td className="p-3">
+                <RunSourceBadge triggeredBy={r.triggered_by} />
+              </td>
+              <td className="p-3 max-w-xs truncate text-muted-foreground text-xs" title={r.prompt}>
+                {r.prompt.slice(0, 80)}{r.prompt.length > 80 ? "..." : ""}
+              </td>
+              <td className="p-3 text-right font-mono">${r.cost_usd.toFixed(4)}</td>
+              <td className="p-3 text-right">{r.num_turns}</td>
+              <td className="p-3 text-right text-muted-foreground text-xs">
+                {r.duration_ms > 0 ? `${(r.duration_ms / 1000).toFixed(1)}s` : "—"}
+              </td>
+              <td className="p-3 text-muted-foreground text-xs">
+                <LocalDate value={r.created_at} />
+              </td>
+            </AdminTableRow>
+          ))}
+          {runs.length === 0 && <EmptyRow colSpan={10}>No runs found</EmptyRow>}
+        </tbody>
+      </AdminTable>
     </div>
   );
 }
-

@@ -11,6 +11,16 @@ export interface AgentPlugin {
   plugin_name: string;
 }
 
+export type ScheduleFrequency = "manual" | "hourly" | "daily" | "weekdays" | "weekly";
+export type RunTriggeredBy = "api" | "schedule" | "playground";
+
+export type ScheduleConfig =
+  | { frequency: "manual" }
+  | { frequency: "hourly" }
+  | { frequency: "daily"; time: string }
+  | { frequency: "weekdays"; time: string }
+  | { frequency: "weekly"; time: string; dayOfWeek: number };
+
 export type RunStatus =
   | "pending"
   | "running"

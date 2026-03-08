@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { AdminTable, AdminTableHead, AdminTableRow, Th, EmptyRow } from "@/components/ui/admin-table";
 import { query } from "@/db";
 import { z } from "zod";
 import { AddTenantForm } from "./add-tenant-form";
@@ -38,53 +39,43 @@ export default async function TenantsPage() {
         <h1 className="text-2xl font-semibold">Tenants</h1>
         <AddTenantForm />
       </div>
-      <div className="rounded-lg border border-border">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border bg-muted/50">
-              <th className="text-left p-3 font-medium">Name</th>
-              <th className="text-left p-3 font-medium">Slug</th>
-              <th className="text-left p-3 font-medium">Status</th>
-              <th className="text-right p-3 font-medium">Budget</th>
-              <th className="text-right p-3 font-medium">Spend</th>
-              <th className="text-right p-3 font-medium">Agents</th>
-              <th className="text-right p-3 font-medium">Runs</th>
-              <th className="text-left p-3 font-medium">Created</th>
-            </tr>
-          </thead>
-          <tbody>
-            {tenants.map((t) => (
-              <tr key={t.id} className="border-b border-border hover:bg-muted/30 transition-colors">
-                <td className="p-3">
-                  <Link href={`/admin/tenants/${t.id}`} className="text-primary hover:underline font-medium">
-                    {t.name}
-                  </Link>
-                </td>
-                <td className="p-3 text-muted-foreground font-mono text-xs">{t.slug}</td>
-                <td className="p-3">
-                  <Badge variant={t.status === "active" ? "default" : "destructive"}>
-                    {t.status}
-                  </Badge>
-                </td>
-                <td className="p-3 text-right font-mono">${t.monthly_budget_usd.toFixed(2)}</td>
-                <td className="p-3 text-right font-mono">${t.current_month_spend.toFixed(2)}</td>
-                <td className="p-3 text-right">{t.agent_count}</td>
-                <td className="p-3 text-right">{t.run_count}</td>
-                <td className="p-3 text-muted-foreground text-xs">
-                  {new Date(t.created_at).toLocaleDateString()}
-                </td>
-              </tr>
-            ))}
-            {tenants.length === 0 && (
-              <tr>
-                <td colSpan={8} className="p-8 text-center text-muted-foreground">
-                  No tenants found
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <AdminTable>
+        <AdminTableHead>
+          <Th>Name</Th>
+          <Th>Slug</Th>
+          <Th>Status</Th>
+          <Th align="right">Budget</Th>
+          <Th align="right">Spend</Th>
+          <Th align="right">Agents</Th>
+          <Th align="right">Runs</Th>
+          <Th>Created</Th>
+        </AdminTableHead>
+        <tbody>
+          {tenants.map((t) => (
+            <AdminTableRow key={t.id}>
+              <td className="p-3 font-medium">
+                <Link href={`/admin/tenants/${t.id}`} className="text-primary hover:underline">
+                  {t.name}
+                </Link>
+              </td>
+              <td className="p-3 text-muted-foreground font-mono text-xs">{t.slug}</td>
+              <td className="p-3">
+                <Badge variant={t.status === "active" ? "default" : "destructive"}>
+                  {t.status}
+                </Badge>
+              </td>
+              <td className="p-3 text-right font-mono">${t.monthly_budget_usd.toFixed(2)}</td>
+              <td className="p-3 text-right font-mono">${t.current_month_spend.toFixed(2)}</td>
+              <td className="p-3 text-right">{t.agent_count}</td>
+              <td className="p-3 text-right">{t.run_count}</td>
+              <td className="p-3 text-muted-foreground text-xs">
+                {new Date(t.created_at).toLocaleDateString()}
+              </td>
+            </AdminTableRow>
+          ))}
+          {tenants.length === 0 && <EmptyRow colSpan={8}>No tenants found</EmptyRow>}
+        </tbody>
+      </AdminTable>
     </div>
   );
 }

@@ -51,6 +51,7 @@ export function SkillsEditor({ agentId, initialSkills }: { agentId: string; init
   }
 
   return (
+    <div className="rounded-lg border border-muted-foreground/25 p-5">
     <FileTreeEditor
       initialFiles={flatFiles}
       onSave={handleSave}
@@ -59,5 +60,6 @@ export function SkillsEditor({ agentId, initialSkills }: { agentId: string; init
       addFolderLabel="Folder"
       newFileTemplate={{ filename: "SKILL.md", content: "# New\n\nDescribe this skill...\n" }}
     />
+    </div>
   );
 }

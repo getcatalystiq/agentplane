@@ -60,7 +60,8 @@ describe("validateMetadataOrigin", () => {
   });
 
   it("ignores undefined registration_endpoint", () => {
-    const { registration_endpoint: _, ...metadata } = {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { registration_endpoint: _unused, ...metadata } = {
       ...baseMetadata,
       registration_endpoint: undefined,
     };

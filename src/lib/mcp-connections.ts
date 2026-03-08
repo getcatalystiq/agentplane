@@ -7,7 +7,7 @@
  * Uses mcp-oauth.ts for HTTP calls and db for persistence.
  */
 
-import { query, queryOne, execute, withTenantTransaction } from "@/db";
+import { query, queryOne, withTenantTransaction } from "@/db";
 import { encrypt, decrypt } from "./crypto";
 import { getEnv } from "./env";
 import { logger } from "./logger";
@@ -15,11 +15,10 @@ import {
   McpConnectionRowInternal,
   McpServerRowInternal,
   McpServerRow,
-  McpConnectionRow,
   OAuthMetadataSchema,
 } from "./validation";
 import type { McpConnectionInternal, McpServerInternal, McpServer } from "./validation";
-import type { McpServerId, McpConnectionId, AgentId, TenantId, OAuthMetadata } from "./types";
+import type { McpServerId, McpConnectionId, AgentId, TenantId } from "./types";
 import {
   discoverOAuthMetadata,
   registerClient,

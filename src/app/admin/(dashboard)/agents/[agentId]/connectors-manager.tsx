@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ToolkitMultiselect } from "@/components/toolkit-multiselect";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { SectionHeader } from "@/components/ui/section-header";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { FormError } from "@/components/ui/form-error";
 import { ToolsModal } from "./tools-modal";
 import { McpToolsModal } from "./mcp-tools-modal";
 import type { AuthScheme, ConnectorStatus } from "@/lib/composio";
@@ -52,9 +53,9 @@ function schemeBadgeVariant(scheme: AuthScheme) {
 }
 
 function statusColor(status: string | null) {
-  if (status === "ACTIVE") return "text-green-600";
-  if (status === "INITIATED") return "text-yellow-600";
-  if (status === "FAILED" || status === "EXPIRED" || status === "INACTIVE") return "text-red-500";
+  if (status === "ACTIVE") return "text-green-500";
+  if (status === "INITIATED") return "text-yellow-500";
+  if (status === "FAILED" || status === "EXPIRED" || status === "INACTIVE") return "text-destructive";
   return "text-muted-foreground";
 }
 
@@ -269,44 +270,33 @@ export function ConnectorsManager({ agentId, toolkits: initialToolkits, composio
   return (
     <>
     {/* Composio remove confirmation */}
-    <Dialog open={!!confirmDelete} onOpenChange={(open) => { if (!open) setConfirmDelete(null); }}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Remove Connector</DialogTitle>
-        </DialogHeader>
-        <p className="text-sm text-muted-foreground mb-4">
-          Remove <span className="font-medium text-foreground">{confirmDelete?.name}</span> from this agent?
-        </p>
-        <div className="flex justify-end gap-2">
-          <Button size="sm" variant="ghost" onClick={() => setConfirmDelete(null)} disabled={deleting}>Cancel</Button>
-          <Button size="sm" variant="destructive" onClick={handleConfirmDelete} disabled={deleting}>
-            {deleting ? "Removing..." : "Remove"}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+    <ConfirmDialog
+      open={!!confirmDelete}
+      onOpenChange={(open) => { if (!open) setConfirmDelete(null); }}
+      title="Remove Connector"
+      confirmLabel="Remove"
+      loadingLabel="Removing..."
+      loading={deleting}
+      onConfirm={handleConfirmDelete}
+    >
+      Remove <span className="font-medium text-foreground">{confirmDelete?.name}</span> from this agent?
+    </ConfirmDialog>
 
     {/* MCP disconnect confirmation */}
-    <Dialog open={!!confirmMcpDisconnect} onOpenChange={(open) => { if (!open) setConfirmMcpDisconnect(null); }}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Disconnect Connector</DialogTitle>
-        </DialogHeader>
-        <p className="text-sm text-muted-foreground mb-4">
-          Disconnect <span className="font-medium text-foreground">{confirmMcpDisconnect?.server_name}</span> from this agent?
-        </p>
-        <div className="flex justify-end gap-2">
-          <Button size="sm" variant="ghost" onClick={() => setConfirmMcpDisconnect(null)} disabled={mcpDisconnecting}>Cancel</Button>
-          <Button size="sm" variant="destructive" onClick={handleMcpDisconnect} disabled={mcpDisconnecting}>
-            {mcpDisconnecting ? "Disconnecting..." : "Disconnect"}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+    <ConfirmDialog
+      open={!!confirmMcpDisconnect}
+      onOpenChange={(open) => { if (!open) setConfirmMcpDisconnect(null); }}
+      title="Disconnect Connector"
+      confirmLabel="Disconnect"
+      loadingLabel="Disconnecting..."
+      loading={mcpDisconnecting}
+      onConfirm={handleMcpDisconnect}
+    >
+      Disconnect <span className="font-medium text-foreground">{confirmMcpDisconnect?.server_name}</span> from this agent?
+    </ConfirmDialog>
 
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <CardTitle className="text-base">Connectors</CardTitle>
+    <div className="rounded-lg border border-muted-foreground/25 p-5">
+      <SectionHeader title="Connectors">
         <Button
           size="sm"
           variant="outline"
@@ -314,8 +304,8 @@ export function ConnectorsManager({ agentId, toolkits: initialToolkits, composio
         >
           Add
         </Button>
-      </CardHeader>
-      <CardContent>
+      </SectionHeader>
+      <div>
         {showAdd && (
           <div className="mb-4 space-y-3">
             <div className="flex items-start gap-2">
@@ -384,7 +374,7 @@ export function ConnectorsManager({ agentId, toolkits: initialToolkits, composio
                   <button
                     type="button"
                     onClick={() => setConfirmDelete({ slug: c.slug, name: c.name })}
-                    className="text-muted-foreground hover:text-red-500 flex-shrink-0 ml-1 text-base leading-none"
+                    className="text-muted-foreground hover:text-destructive flex-shrink-0 ml-1 text-base leading-none"
                     title="Remove connector"
                   >
                     ×
@@ -436,9 +426,7 @@ export function ConnectorsManager({ agentId, toolkits: initialToolkits, composio
                         {saving[c.slug] ? "Saving…" : "Save"}
                       </Button>
                     </div>
-                    {errors[c.slug] && (
-                      <p className="text-xs text-red-500">{errors[c.slug]}</p>
-                    )}
+                    <FormError error={errors[c.slug]} />
                   </div>
                 )}
 
@@ -471,7 +459,7 @@ export function ConnectorsManager({ agentId, toolkits: initialToolkits, composio
                   <button
                     type="button"
                     onClick={() => setConfirmMcpDisconnect(c)}
-                    className="text-muted-foreground hover:text-red-500 flex-shrink-0 ml-1 text-base leading-none"
+                    className="text-muted-foreground hover:text-destructive flex-shrink-0 ml-1 text-base leading-none"
                     title="Disconnect"
                   >
                     ×
@@ -479,9 +467,9 @@ export function ConnectorsManager({ agentId, toolkits: initialToolkits, composio
                 </div>
 
                 {c.status === "active" ? (
-                  <span className="text-xs font-medium text-green-600">✓ Connected</span>
+                  <span className="text-xs font-medium text-green-500">✓ Connected</span>
                 ) : (
-                  <span className={`text-xs ${c.status === "expired" || c.status === "failed" ? "text-red-500" : "text-muted-foreground"}`}>
+                  <span className={`text-xs ${c.status === "expired" || c.status === "failed" ? "text-destructive" : "text-muted-foreground"}`}>
                     {c.status}
                   </span>
                 )}
@@ -537,13 +525,12 @@ export function ConnectorsManager({ agentId, toolkits: initialToolkits, composio
             </p>
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
 
     {/* Composio tools modal */}
     {toolsModalToolkit && (
       <ToolsModal
-        agentId={agentId}
         toolkit={toolsModalToolkit}
         toolkitLogo={connectors.find((c) => c.slug === toolsModalToolkit)?.logo}
         allowedTools={allowedTools}

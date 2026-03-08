@@ -2,8 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { queryOne } from "@/db";
 import { PluginMarketplaceRow, PluginManifestSchema } from "@/lib/validation";
-import { fetchRepoTree, fetchRawContent } from "@/lib/github";
-import { getCachedContent } from "@/lib/plugins";
+import { fetchRepoTree, fetchFileContent } from "@/lib/github";
 import { Badge } from "@/components/ui/badge";
 import { getEnv } from "@/lib/env";
 import { decrypt } from "@/lib/crypto";
@@ -11,20 +10,13 @@ import { PluginEditorClient } from "./plugin-editor-client";
 
 export const dynamic = "force-dynamic";
 
-function getGlobalToken(): string | undefined {
-  try {
-    return getEnv().GITHUB_TOKEN;
-  } catch {
-    return undefined;
-  }
-}
-
 export default async function PluginEditorPage({
   params,
 }: {
-  params: Promise<{ marketplaceId: string; pluginName: string }>;
+  params: Promise<{ marketplaceId: string; pluginName: string[] }>;
 }) {
-  const { marketplaceId, pluginName } = await params;
+  const { marketplaceId, pluginName: pluginNameSegments } = await params;
+  const pluginName = pluginNameSegments.join("/");
 
   const marketplace = await queryOne(
     PluginMarketplaceRow,
@@ -35,18 +27,14 @@ export default async function PluginEditorPage({
 
   const isOwned = marketplace.github_token_enc !== null;
 
-  // Get token (marketplace-specific or global)
+  // Get token from marketplace
   let token: string | undefined;
   if (marketplace.github_token_enc) {
     try {
       const env = getEnv();
       const encrypted = JSON.parse(marketplace.github_token_enc);
       token = await decrypt(encrypted, env.ENCRYPTION_KEY, env.ENCRYPTION_KEY_PREVIOUS);
-    } catch {
-      token = getGlobalToken();
-    }
-  } else {
-    token = getGlobalToken();
+    } catch { /* no token available */ }
   }
 
   const [owner, repo] = marketplace.github_repo.split("/");
@@ -55,7 +43,7 @@ export default async function PluginEditorPage({
     return (
       <div className="space-y-4">
         <Link href={`/admin/plugin-marketplaces/${marketplaceId}`} className="text-muted-foreground hover:text-foreground text-sm">&larr; Back</Link>
-        <p className="text-sm text-red-500">Failed to load plugin: {treeResult.message}</p>
+        <p className="text-sm text-destructive">Failed to load plugin: {treeResult.message}</p>
       </div>
     );
   }
@@ -63,7 +51,7 @@ export default async function PluginEditorPage({
   const tree = treeResult.data;
 
   // Fetch plugin manifest for display name
-  const manifestResult = await fetchRawContent(owner, repo, `${pluginName}/.claude-plugin/plugin.json`, token);
+  const manifestResult = await fetchFileContent(owner, repo, `${pluginName}/.claude-plugin/plugin.json`, token);
   let displayName = pluginName;
   if (manifestResult.ok) {
     try {
@@ -72,13 +60,9 @@ export default async function PluginEditorPage({
     } catch { /* use pluginName */ }
   }
 
-  const githubRepo = marketplace.github_repo;
-
-  // Helper: use recently-pushed content cache before falling back to GitHub CDN
+  // Helper: fetch via GitHub Contents API (always fresh, unlike CDN)
   async function getContent(filePath: string): Promise<string | null> {
-    const cached = getCachedContent(githubRepo, filePath);
-    if (cached !== null) return cached;
-    const result = await fetchRawContent(owner, repo, filePath, token);
+    const result = await fetchFileContent(owner, repo, filePath, token);
     return result.ok ? result.data : null;
   }
 

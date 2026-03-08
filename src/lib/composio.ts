@@ -18,7 +18,6 @@ function getClient(): InstanceType<typeof ComposioClient> | null {
 
 export interface ComposioMcpConfig {
   url: string;
-  apiKey: string;
   serverId: string;
   serverName: string;
 }
@@ -288,23 +287,18 @@ export async function getOrCreateComposioMcpServer(
     const urlResponse = await client.mcp.generate.url({
       mcp_server_id: serverId,
       user_ids: [userId],
-    });
+      managed_auth_by_composio: true,
+    } as Parameters<typeof client.mcp.generate.url>[0]);
 
     const fullUrl = urlResponse.user_ids_url?.[0] || urlResponse.mcp_url;
-
-    // Split the URL into base URL + API key so the key can be stored encrypted.
-    const urlObj = new URL(fullUrl);
-    const apiKey = urlObj.searchParams.get("apiKey") ?? "";
-    urlObj.searchParams.delete("apiKey");
-    const cleanUrl = urlObj.toString();
 
     logger.info("Composio MCP URL generated", {
       user_id: userId,
       server_id: serverId,
-      url: cleanUrl.slice(0, 60) + "...",
+      url: fullUrl.slice(0, 80) + "...",
     });
 
-    return { url: cleanUrl, apiKey, serverId, serverName };
+    return { url: fullUrl, serverId, serverName };
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     const errorStack = err instanceof Error ? err.stack?.slice(0, 500) : undefined;

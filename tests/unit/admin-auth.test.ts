@@ -52,10 +52,12 @@ describe("authenticateAdminFromCookie", () => {
   function makeRequest(cookieValue?: string) {
     return {
       cookies: {
-        get: vi.fn((name: string) =>
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        get: vi.fn((_name: string) =>
           cookieValue ? { value: cookieValue } : undefined,
         ),
       },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any;
   }
 
@@ -110,6 +112,7 @@ describe("authenticateAdminFromCookie", () => {
 describe("setAdminCookie", () => {
   it("sets httpOnly cookie with correct options", () => {
     const setCookieSpy = vi.fn();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const mockResponse = { cookies: { set: setCookieSpy } } as any;
     setAdminCookie(mockResponse, "mytoken");
     expect(setCookieSpy).toHaveBeenCalledWith(
@@ -127,6 +130,7 @@ describe("setAdminCookie", () => {
 describe("clearAdminCookie", () => {
   it("deletes the admin_session cookie", () => {
     const deleteCookieSpy = vi.fn();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const mockResponse = { cookies: { delete: deleteCookieSpy } } as any;
     clearAdminCookie(mockResponse);
     expect(deleteCookieSpy).toHaveBeenCalledWith("admin_session");

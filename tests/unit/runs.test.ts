@@ -165,6 +165,7 @@ describe("transitionRunStatus", () => {
     await expect(
       transitionRunStatus(runId, tenantId, "pending", "running", {
         ["malicious; DROP TABLE runs--"]: "x",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any),
     ).rejects.toThrow("Invalid column name");
   });
@@ -179,6 +180,7 @@ describe("createRun", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockTx = { queryOne: vi.fn(), execute: vi.fn() };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(withTenantTransaction).mockImplementation(async (_, cb) => cb(mockTx as any));
   });
 

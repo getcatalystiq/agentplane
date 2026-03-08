@@ -7,9 +7,10 @@ A multi-tenant platform for running Claude Agent SDK agents in isolated Vercel S
 **Stack:** Next.js 16 (App Router) · TypeScript · Neon Postgres · Vercel Sandbox · Vercel Blob · Tailwind CSS v4 · Recharts
 
 **Core concepts:**
-- **Tenant** — isolated workspace with its own API keys, agents, and budget
-- **Agent** — configuration (model, tools, permissions, skills, plugins, git repo) that runs Claude Agent SDK
-- **Run** — a single agent execution triggered by a prompt; streams NDJSON events
+- **Tenant** — isolated workspace with its own API keys, agents, budget, and timezone
+- **Agent** — configuration (model, tools, permissions, skills, plugins, git repo, schedule, max runtime) that runs Claude Agent SDK
+- **Run** — a single agent execution triggered by API, schedule, or playground; streams NDJSON events; tracks `triggered_by` source
+- **Schedule** — per-agent cron configuration (manual/hourly/daily/weekdays/weekly) with timezone-aware execution
 - **MCP Server** — custom OAuth-authenticated tool server registered by admins; agents connect via OAuth 2.1 PKCE
 - **Plugin Marketplace** — GitHub repo containing reusable skills/commands that agents can install
 
@@ -49,6 +50,7 @@ src/
     api/
       agents/             # CRUD + run creation + skills + plugins + Composio OAuth + MCP connections
       composio/           # tenant-scoped Composio toolkit + tool discovery
+      internal/           # internal endpoints (run transcript upload from sandbox)
       runs/               # run list, status (NDJSON stream), cancel, transcript
       admin/
         agents/           # admin agent CRUD + connectors + MCP connections + plugin suggestions
@@ -56,9 +58,13 @@ src/
         login/            # admin JWT authentication
         mcp-servers/      # custom MCP server CRUD
         plugin-marketplaces/  # marketplace CRUD + plugin listing + file editing
-        runs/             # admin run management
+        runs/             # admin run management + cancellation
         tenants/          # tenant CRUD + API key management
-      cron/               # scheduled jobs (budget reset, sandbox + transcript cleanup)
+      cron/               # scheduled jobs (budget reset, sandbox + transcript cleanup, scheduled runs)
+        budget-reset/     # daily budget reset
+        cleanup-sandboxes/  # sandbox cleanup every 5 min
+        cleanup-transcripts/  # daily transcript cleanup
+        scheduled-runs/   # per-minute scheduled agent run dispatcher + executor
       health/             # health check (no auth)
       keys/               # tenant-scoped API key management
       mcp-servers/        # MCP OAuth callback + server listing
@@ -70,15 +76,15 @@ src/
       (dashboard)/
         page.tsx          # dashboard overview (stat cards + run/cost charts)
         run-charts.tsx    # Recharts line charts (runs/day, cost/day per agent)
-        agents/           # agent list + detail (edit, connectors, skills, plugins, playground)
+        agents/           # agent list + detail (edit, connectors, skills, plugins, playground, schedule)
         mcp-servers/      # custom MCP server management
         plugin-marketplaces/  # marketplace list + detail + plugin editor (tabbed: Skills, Commands, Connectors)
-        runs/             # run list + detail (transcript viewer with markdown rendering)
-        tenants/          # tenant list + detail + creation (API keys, budget)
+        runs/             # run list + detail (transcript viewer, cancel button, run source badge)
+        tenants/          # tenant list + detail + creation (API keys, budget, timezone)
   db/
     index.ts              # DB client (Pool, query helpers, RLS context, transactions)
     migrate.ts            # migration runner
-    migrations/           # sequential SQL migration files (001–009)
+    migrations/           # sequential SQL migration files (001–012)
   lib/
     types.ts              # branded types, domain interfaces, StreamEvent union
     env.ts                # Zod-validated env (getEnv())
@@ -86,6 +92,10 @@ src/
     auth.ts               # API key authentication + tenant RLS context
     admin-auth.ts         # admin JWT + cookie auth
     sandbox.ts            # Vercel Sandbox creation + Claude Agent SDK runner + skill/plugin file injection
+    run-executor.ts       # run preparation + execution abstraction (sandbox setup, transcript, billing)
+    schedule.ts           # schedule config management, cron expression building, timezone-aware scheduling
+    timezone.ts           # browser-safe timezone validation using Intl.DateTimeFormat
+    cron-auth.ts          # cron secret verification for scheduled run endpoints
     mcp.ts                # MCP config builder (Composio + custom servers)
     mcp-connections.ts    # MCP connection orchestration (OAuth, token refresh, caching)
     mcp-oauth.ts          # OAuth 2.1 PKCE HTTP calls (discovery, registration, token exchange)
@@ -110,7 +120,12 @@ src/
     file-tree-editor.tsx  # nested folder editor with CodeMirror (language-aware)
     toolkit-multiselect.tsx  # Composio toolkit picker (search, logos)
     local-date.tsx        # client-side date formatting
-    ui/                   # shared UI primitives (badge, button, card, dialog, etc.)
+    ui/                   # shared UI primitives (badge, button, card, dialog, confirm-dialog, form-field, etc.)
+      run-source-badge.tsx   # color-coded badge for run trigger source (API, Schedule, Playground)
+      detail-page-header.tsx # standardized detail page header
+      section-header.tsx     # consistent section headers
+      confirm-dialog.tsx     # managed confirmation dialog (replaces browser confirm())
+      form-field.tsx         # form field wrapper with label + error display
   middleware.ts           # auth middleware (API key, JWT cookie, OAuth callback bypass)
 scripts/
   create-tenant.ts        # CLI to provision tenant + API key
@@ -144,8 +159,10 @@ Neon Postgres with Row-Level Security (RLS). Tables: `tenants`, `api_keys`, `age
 - Agent names are unique per tenant
 - RLS enforced via `app.current_tenant_id` session config (fail-closed via `NULLIF`)
 - Tenant-scoped transactions via `withTenantTransaction()`
-- Migrations: numbered SQL files in `src/db/migrations/` (currently 001–009), run via `npm run migrate`
-- `agents` table includes: Composio MCP cache columns, `composio_allowed_tools` (per-toolkit tool filtering), `skills` JSONB, `plugins` JSONB
+- Migrations: numbered SQL files in `src/db/migrations/` (currently 001–012), run via `npm run migrate`
+- `tenants` table includes: `timezone` column for schedule evaluation
+- `agents` table includes: Composio MCP cache columns, `composio_allowed_tools` (per-toolkit tool filtering), `skills` JSONB, `plugins` JSONB, schedule columns (`schedule_frequency`, `schedule_time`, `schedule_day_of_week`, `schedule_prompt`, `schedule_enabled`, `last_run_at`, `next_run_at`), `max_runtime_seconds` (60–3600, default 600)
+- `runs` table includes: `triggered_by` column (`api`, `schedule`, `playground`) to track run source
 - `mcp_servers` — admin-managed global registry (OAuth 2.1 client credentials, no RLS)
 - `mcp_connections` — per-agent OAuth connections (tenant-scoped RLS, unique per agent-server pair)
 - `plugin_marketplaces` — global registry of GitHub repos; optional encrypted GitHub token for push-to-repo editing
@@ -163,7 +180,6 @@ Neon Postgres with Row-Level Security (RLS). Tables: `tenants`, `api_keys`, `age
 | `ENCRYPTION_KEY_PREVIOUS` | No | 64 hex chars; supports seamless key rotation |
 | `BLOB_READ_WRITE_TOKEN` | No | Vercel Blob (transcript + asset storage) |
 | `COMPOSIO_API_KEY` | No | Composio MCP tool integration (optional if not using Composio toolkits) |
-| `GITHUB_TOKEN` | No | GitHub API auth (5000 req/hr vs 60 unauthenticated); used for plugin marketplace access |
 | `CRON_SECRET` | No | Vercel Cron authentication (auto-set in production) |
 
 ## API Authentication
@@ -210,3 +226,8 @@ All routes (except `/api/health`) require `Authorization: Bearer <api_key>`. Adm
 - SDK resource namespaces: `client.runs`, `client.agents`, `client.connectors`, `client.customConnectors`, `client.pluginMarketplaces`; agents nests `skills`, `plugins`, `connectors`, `customConnectors`
 - JSONB array mutations use atomic SQL guards (`NOT EXISTS` for uniqueness, `jsonb_array_length` for limits) to prevent TOCTOU races
 - Composio discovery helpers (`listComposioToolkits`, `listComposioTools`) are shared between admin and tenant routes via `src/lib/composio.ts`; tool pagination capped at 10 pages
+- Scheduled runs: cron dispatcher runs every minute, claims due agents, computes next run time, dispatches to executor endpoint
+- Run executor (`src/lib/run-executor.ts`) separates run preparation (MCP config, plugins, sandbox) from execution; used by both API and scheduled runs
+- Transcript capture preserves critical events (result/error) even after truncation limit
+- Timezone validation extracted to `src/lib/timezone.ts` to avoid pulling `croner` into client bundles
+- `croner` library used for cron expression evaluation and next-run-time computation

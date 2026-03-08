@@ -120,6 +120,28 @@ export function generateId(): string {
   return uuidv4();
 }
 
+// --- Run Token (HMAC-based) ---
+// Derives a run-scoped bearer token from the run ID using HMAC-SHA256.
+// No DB storage needed — verifiable by recomputing the HMAC.
+
+export async function generateRunToken(runId: string, encryptionKey: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    hexToBuffer(encryptionKey),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(runId));
+  return `runtok_${bufferToHex(signature)}`;
+}
+
+export async function verifyRunToken(token: string, runId: string, encryptionKey: string): Promise<boolean> {
+  if (!token.startsWith("runtok_")) return false;
+  const expected = await generateRunToken(runId, encryptionKey);
+  return timingSafeEqual(token, expected);
+}
+
 // --- Timing-safe comparison ---
 // Pads both strings to equal length to prevent length leakage via timing.
 

@@ -8,7 +8,6 @@ import { json } from "@codemirror/lang-json";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 export interface FlatFile {
@@ -132,6 +131,8 @@ interface FileTreeEditorProps {
   saveLabel?: string;
   addFolderLabel?: string;
   newFileTemplate?: { filename: string; content: string };
+  /** Increment to mark current files as saved (resets dirty state) */
+  savedVersion?: number;
 }
 
 export function FileTreeEditor({
@@ -144,6 +145,7 @@ export function FileTreeEditor({
   saveLabel = "Save",
   addFolderLabel = "Folder",
   newFileTemplate = { filename: "SKILL.md", content: "# New\n\nDescribe this...\n" },
+  savedVersion,
 }: FileTreeEditorProps) {
   const [files, setFiles] = useState<FlatFile[]>(initialFiles);
   const [selectedPath, setSelectedPath] = useState<string | null>(
@@ -158,27 +160,36 @@ export function FileTreeEditor({
   const [newFolderName, setNewFolderName] = useState("");
   const [addingFileInDir, setAddingFileInDir] = useState<string | null>(null);
   const [newFileName, setNewFileName] = useState("");
-  const savedSnapshot = useRef(JSON.stringify(initialFiles));
+  const [savedSnapshot, setSavedSnapshot] = useState(() => JSON.stringify(initialFiles));
 
   useEffect(() => {
-    savedSnapshot.current = JSON.stringify(initialFiles);
+    const snap = JSON.stringify(initialFiles);
+    setSavedSnapshot(snap);
     setFiles(initialFiles);
     // Expand all dirs when initialFiles changes
     const { rootDirs } = buildTree(initialFiles);
     setExpanded(collectAllDirPaths(rootDirs));
   }, [initialFiles]);
 
+  // Reset dirty state when parent signals a successful save
+  useEffect(() => {
+    if (savedVersion !== undefined && savedVersion > 0) {
+      setSavedSnapshot(JSON.stringify(files));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedVersion]);
+
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   useEffect(() => {
-    if (onChangeRef.current && JSON.stringify(files) !== savedSnapshot.current) {
+    if (onChangeRef.current && JSON.stringify(files) !== savedSnapshot) {
       onChangeRef.current(files);
     }
-  }, [files]);
+  }, [files, savedSnapshot]);
 
   const isDirty = useMemo(
-    () => JSON.stringify(files) !== savedSnapshot.current,
-    [files],
+    () => JSON.stringify(files) !== savedSnapshot,
+    [files, savedSnapshot],
   );
 
   const tree = useMemo(() => buildTree(files), [files]);
@@ -337,10 +348,10 @@ export function FileTreeEditor({
   }
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
+    <div>
+      <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
-          <CardTitle className="text-base">{title}</CardTitle>
+          <h2 className="text-lg font-semibold">{title}</h2>
           {isDirty && !readOnly && <Badge variant="destructive" className="text-xs">Unsaved changes</Badge>}
           {readOnly && <Badge variant="secondary" className="text-xs">Read-only</Badge>}
         </div>
@@ -349,8 +360,8 @@ export function FileTreeEditor({
             {saving ? "Saving..." : saveLabel}
           </Button>
         )}
-      </CardHeader>
-      <CardContent>
+      </div>
+      <div>
         <div className="flex gap-4 min-h-[500px]">
           {/* File tree */}
           <div className="w-64 shrink-0 border border-border rounded-md overflow-hidden">
@@ -439,7 +450,7 @@ export function FileTreeEditor({
             )}
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
