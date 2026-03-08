@@ -3,7 +3,8 @@
   "crons": [
     { "path": "/api/cron/cleanup-transcripts", "schedule": "0 3 * * *" },
     { "path": "/api/cron/cleanup-sandboxes", "schedule": "*/15 * * * *" },
-    { "path": "/api/cron/budget-reset", "schedule": "0 0 * * *" }
+    { "path": "/api/cron/budget-reset", "schedule": "0 0 * * *" },
+    { "path": "/api/cron/scheduled-runs", "schedule": "* * * * *" }
   ],
   "functions": {
     "app/api/runs/**": { "supportsCancellation": true }

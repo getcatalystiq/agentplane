@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { authenticateAdminFromCookie } from "@/lib/admin-auth";
 
-// Paths that don't require authentication
+// Paths that don't require authentication.
+// NOTE: Uses prefix matching via startsWith — any new routes under these
+// prefixes will also bypass auth. Cron routes use CRON_SECRET verification instead.
 const PUBLIC_PATHS = ["/api/health", "/api/cron/"];
 
 function isPublicPath(pathname: string): boolean {

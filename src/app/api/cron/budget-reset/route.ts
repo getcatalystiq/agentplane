@@ -2,19 +2,12 @@ import { NextRequest } from "next/server";
 import { withErrorHandler, jsonResponse } from "@/lib/api";
 import { execute } from "@/db";
 import { logger } from "@/lib/logger";
+import { verifyCronSecret } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
-  // Verify CRON_SECRET — reject if not configured or mismatched
-  const cronSecret = process.env.CRON_SECRET;
-  const authHeader = request.headers.get("authorization");
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-    return jsonResponse(
-      { error: { code: "unauthorized", message: "Invalid cron secret" } },
-      401,
-    );
-  }
+  verifyCronSecret(request);
 
   // First day of the current month at midnight UTC
   const now = new Date();

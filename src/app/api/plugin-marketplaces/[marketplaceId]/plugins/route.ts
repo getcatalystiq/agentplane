@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { authenticateApiKey } from "@/lib/auth";
 import { withErrorHandler, jsonResponse } from "@/lib/api";
 import { queryOne } from "@/db";
-import { PluginMarketplaceRow, PluginMarketplacePublicRow } from "@/lib/validation";
+import { PluginMarketplaceRow } from "@/lib/validation";
 import { NotFoundError } from "@/lib/errors";
 import { listPlugins } from "@/lib/plugins";
 import { decrypt } from "@/lib/crypto";

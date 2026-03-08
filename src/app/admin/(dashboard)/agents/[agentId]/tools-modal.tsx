@@ -12,7 +12,6 @@ interface Tool {
 }
 
 interface Props {
-  agentId: string;
   toolkit: string;
   toolkitLogo?: string;
   allowedTools: string[];
@@ -21,7 +20,7 @@ interface Props {
   onSave: (toolkit: string, selectedSlugs: string[]) => void;
 }
 
-export function ToolsModal({ agentId: _agentId, toolkit, toolkitLogo, allowedTools, open, onOpenChange, onSave }: Props) {
+export function ToolsModal({ toolkit, toolkitLogo, allowedTools, open, onOpenChange, onSave }: Props) {
   const [tools, setTools] = useState<Tool[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");

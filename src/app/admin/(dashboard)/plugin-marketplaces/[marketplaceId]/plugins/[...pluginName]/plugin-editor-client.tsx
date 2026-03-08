@@ -106,7 +106,7 @@ export function PluginEditorClient({
         </div>
         {!readOnly && (
           <div className="flex items-center gap-3 ml-auto pb-2">
-            {error && <span className="text-xs text-red-500">{error}</span>}
+            {error && <span className="text-xs text-destructive">{error}</span>}
             {success && <span className="text-xs text-green-500">{success}</span>}
             <Button size="sm" onClick={handleSaveAll} disabled={saving}>
               {saving ? "Pushing to GitHub..." : "Save All to GitHub"}

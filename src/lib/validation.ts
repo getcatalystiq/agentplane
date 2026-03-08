@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isValidTimezone } from "@/lib/schedule";
 
 // --- Skills Validation ---
 
@@ -162,6 +163,12 @@ export const SafePluginFilename = z.string()
   .min(1).max(255)
   .regex(/^[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+$/, "Must have a safe filename with extension");
 
+// --- Schedule Validation ---
+
+export const ScheduleFrequencySchema = z.enum(["manual", "hourly", "daily", "weekdays", "weekly"]);
+export const RunTriggeredBySchema = z.enum(["api", "schedule", "playground"]);
+export const TimezoneSchema = z.string().min(1).max(100).refine(isValidTimezone, { message: "Invalid IANA timezone" });
+
 // --- Agent Validation ---
 
 export const CreateAgentSchema = z.object({
@@ -205,6 +212,17 @@ export const UpdateAgentSchema = z.object({
   permission_mode: z.enum(["default", "acceptEdits", "bypassPermissions", "plan"]),
   max_turns: z.number().int().min(1).max(1000),
   max_budget_usd: z.number().min(0.01).max(100.0),
+  schedule_frequency: ScheduleFrequencySchema,
+  schedule_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, "Must be HH:MM or HH:MM:SS format").refine(
+    (v) => {
+      const [h, m] = v.split(":").map(Number);
+      return h >= 0 && h <= 23 && m >= 0 && m <= 59;
+    },
+    { message: "Hours must be 0-23, minutes must be 0-59" },
+  ).nullable(),
+  schedule_day_of_week: z.number().int().min(0).max(6).nullable(),
+  schedule_prompt: z.string().max(100_000).nullable(),
+  schedule_enabled: z.boolean(),
 }).partial();
 
 export type CreateAgentInput = z.infer<typeof CreateAgentSchema>;
@@ -254,6 +272,7 @@ export const TenantRow = z.object({
   monthly_budget_usd: z.coerce.number(),
   status: z.enum(["active", "suspended"]),
   current_month_spend: z.coerce.number(),
+  timezone: z.string().default("UTC"),
   spend_period_start: z.coerce.string(),
   created_at: z.coerce.string(),
 });
@@ -289,6 +308,13 @@ export const AgentRow = z.object({
   permission_mode: z.enum(["default", "acceptEdits", "bypassPermissions", "plan"]),
   max_turns: z.coerce.number(),
   max_budget_usd: z.coerce.number(),
+  schedule_frequency: ScheduleFrequencySchema.default("manual"),
+  schedule_time: z.string().nullable().default(null),
+  schedule_day_of_week: z.coerce.number().nullable().default(null),
+  schedule_prompt: z.string().nullable().default(null),
+  schedule_enabled: z.boolean().default(false),
+  schedule_last_run_at: z.coerce.string().nullable().default(null),
+  schedule_next_run_at: z.coerce.string().nullable().default(null),
   created_at: z.coerce.string(),
   updated_at: z.coerce.string(),
 });
@@ -428,6 +454,7 @@ export const RunRow = z.object({
   error_type: z.string().nullable(),
   error_messages: z.array(z.string()),
   sandbox_id: z.string().nullable(),
+  triggered_by: RunTriggeredBySchema.default("api"),
   started_at: z.coerce.string().nullable(),
   completed_at: z.coerce.string().nullable(),
   created_at: z.coerce.string(),

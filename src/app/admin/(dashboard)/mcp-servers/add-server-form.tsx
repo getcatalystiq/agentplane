@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { FormField } from "@/components/ui/form-field";
+import { FormError } from "@/components/ui/form-error";
 
 export function AddMcpServerForm() {
   const router = useRouter();
@@ -72,58 +74,52 @@ export function AddMcpServerForm() {
             <DialogTitle>Register Custom Connector</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-3">
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">Name</label>
+            <FormField label="Name">
               <Input
                 value={form.name}
                 onChange={(e) => updateField("name", e.target.value)}
                 placeholder="My Custom Connector"
                 required
               />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">Slug</label>
+            </FormField>
+            <FormField label="Slug">
               <Input
                 value={form.slug}
                 onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value }))}
                 placeholder="my-mcp-server"
                 required
               />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">Description</label>
+            </FormField>
+            <FormField label="Description">
               <Input
                 value={form.description}
                 onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                 placeholder="What this server does"
               />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">Base URL</label>
+            </FormField>
+            <FormField label="Base URL">
               <Input
                 value={form.base_url}
                 onChange={(e) => setForm((f) => ({ ...f, base_url: e.target.value }))}
                 placeholder="https://mcp.example.com"
                 required
               />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">MCP Endpoint Path</label>
+            </FormField>
+            <FormField label="MCP Endpoint Path">
               <Input
                 value={form.mcp_endpoint_path}
                 onChange={(e) => setForm((f) => ({ ...f, mcp_endpoint_path: e.target.value }))}
                 placeholder="/mcp"
               />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">Logo URL (optional)</label>
+            </FormField>
+            <FormField label="Logo URL (optional)">
               <Input
                 value={form.logo_url}
                 onChange={(e) => setForm((f) => ({ ...f, logo_url: e.target.value }))}
                 placeholder="https://..."
               />
-            </div>
-            {error && <p className="text-xs text-red-500">{error}</p>}
+            </FormField>
+            <FormError error={error} />
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>Cancel</Button>
               <Button type="submit" size="sm" disabled={saving}>

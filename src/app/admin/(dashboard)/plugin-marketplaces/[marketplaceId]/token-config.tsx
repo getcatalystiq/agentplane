@@ -71,7 +71,7 @@ export function TokenConfig({ marketplaceId, hasToken }: { marketplaceId: string
       ) : (
         <Button size="sm" variant="outline" onClick={() => setOpen(true)}>Configure GitHub Token</Button>
       )}
-      {error && <span className="text-xs text-red-500">{error}</span>}
+      {error && <span className="text-xs text-destructive">{error}</span>}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-md">
@@ -98,7 +98,7 @@ export function TokenConfig({ marketplaceId, hasToken }: { marketplaceId: string
                 </ol>
               </div>
             </div>
-            {error && <p className="text-xs text-red-500">{error}</p>}
+            {error && <p className="text-xs text-destructive">{error}</p>}
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>Cancel</Button>
               <Button size="sm" disabled={saving || !token} onClick={handleSave}>

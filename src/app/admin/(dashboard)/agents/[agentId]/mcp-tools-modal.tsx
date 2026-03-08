@@ -130,7 +130,7 @@ export function McpToolsModal({
         {loading ? (
           <p className="text-sm text-muted-foreground py-4 text-center">Loading tools...</p>
         ) : error ? (
-          <p className="text-sm text-red-500 py-4 text-center">{error}</p>
+          <p className="text-sm text-destructive py-4 text-center">{error}</p>
         ) : (
           <>
             <div className="flex items-center justify-between text-xs text-muted-foreground mt-1 mb-1">

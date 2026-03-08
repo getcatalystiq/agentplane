@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { query, queryOne, execute } from "@/db";
+import { query, queryOne } from "@/db";
 import { CreatePluginMarketplaceSchema, PluginMarketplaceRow } from "@/lib/validation";
 import { withErrorHandler } from "@/lib/api";
 import { ConflictError } from "@/lib/errors";

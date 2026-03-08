@@ -8,6 +8,7 @@ const VALID_ENV = {
   ENCRYPTION_KEY: "a".repeat(64),
   ADMIN_API_KEY: "admin-key-123",
   AI_GATEWAY_API_KEY: "gateway-key-456",
+  CRON_SECRET: "test-cron-secret",
   NODE_ENV: "test",
 };
 

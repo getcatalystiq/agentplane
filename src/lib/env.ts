@@ -9,7 +9,7 @@ const EnvSchema = z.object({
   BLOB_READ_WRITE_TOKEN: z.string().optional(),
 
   // Vercel Cron
-  CRON_SECRET: z.string().optional(),
+  CRON_SECRET: z.string().min(1, "CRON_SECRET is required"),
 
   // Platform security
   ENCRYPTION_KEY: z.string().length(64, "ENCRYPTION_KEY must be 64 hex chars (32 bytes)"),

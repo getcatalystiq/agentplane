@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { FormField } from "@/components/ui/form-field";
+import { FormError } from "@/components/ui/form-error";
 
 export function AddMarketplaceForm() {
   const router = useRouter();
@@ -53,26 +55,23 @@ export function AddMarketplaceForm() {
             <DialogTitle>Add Plugin Marketplace</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-3">
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">Name</label>
+            <FormField label="Name">
               <Input
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 placeholder="Knowledge Work Plugins"
                 required
               />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">GitHub Repository</label>
+            </FormField>
+            <FormField label="GitHub Repository" hint="Format: owner/repo">
               <Input
                 value={form.github_repo}
                 onChange={(e) => setForm((f) => ({ ...f, github_repo: e.target.value }))}
                 placeholder="anthropics/knowledge-work-plugins"
                 required
               />
-              <p className="text-xs text-muted-foreground mt-1">Format: owner/repo</p>
-            </div>
-            <div>
+            </FormField>
+            <div className="space-y-1">
               <div className="flex items-center gap-1.5">
                 <label className="text-xs font-medium text-muted-foreground">GitHub Token (optional, required for private repos)</label>
                 <button
@@ -89,7 +88,6 @@ export function AddMarketplaceForm() {
                 value={form.github_token}
                 onChange={(e) => setForm((f) => ({ ...f, github_token: e.target.value }))}
                 placeholder="ghp_... or github_pat_..."
-                className="mt-1"
               />
               {showTokenHelp && (
                 <div className="text-xs text-muted-foreground mt-2 rounded-md border border-border bg-muted/30 p-2.5 space-y-1">
@@ -105,7 +103,7 @@ export function AddMarketplaceForm() {
                 </div>
               )}
             </div>
-            {error && <p className="text-xs text-red-500">{error}</p>}
+            <FormError error={error} />
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>Cancel</Button>
               <Button type="submit" size="sm" disabled={saving}>

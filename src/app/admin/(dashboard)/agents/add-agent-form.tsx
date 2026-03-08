@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { FormField } from "@/components/ui/form-field";
+import { FormError } from "@/components/ui/form-error";
 
 const MODELS = [
   { value: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
@@ -94,8 +96,7 @@ export function AddAgentForm({ tenants, defaultTenantId }: Props) {
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-3">
             {!defaultTenantId && (
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">Tenant</label>
+              <FormField label="Tenant">
                 <Select
                   value={form.tenant_id}
                   onChange={(e) => setForm((f) => ({ ...f, tenant_id: e.target.value }))}
@@ -105,28 +106,25 @@ export function AddAgentForm({ tenants, defaultTenantId }: Props) {
                     <option key={t.id} value={t.id}>{t.name}</option>
                   ))}
                 </Select>
-              </div>
+              </FormField>
             )}
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">Name</label>
+            <FormField label="Name">
               <Input
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 placeholder="my-agent"
                 required
               />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">Description</label>
+            </FormField>
+            <FormField label="Description">
               <Input
                 value={form.description}
                 onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                 placeholder="What does this agent do?"
               />
-            </div>
+            </FormField>
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">Model</label>
+              <FormField label="Model">
                 <Select
                   value={form.model}
                   onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))}
@@ -135,9 +133,8 @@ export function AddAgentForm({ tenants, defaultTenantId }: Props) {
                     <option key={m.value} value={m.value}>{m.label}</option>
                   ))}
                 </Select>
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">Permission Mode</label>
+              </FormField>
+              <FormField label="Permission Mode">
                 <Select
                   value={form.permission_mode}
                   onChange={(e) => setForm((f) => ({ ...f, permission_mode: e.target.value }))}
@@ -147,11 +144,10 @@ export function AddAgentForm({ tenants, defaultTenantId }: Props) {
                   <option value="bypassPermissions">bypassPermissions</option>
                   <option value="plan">plan</option>
                 </Select>
-              </div>
+              </FormField>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">Max Turns</label>
+              <FormField label="Max Turns">
                 <Input
                   type="number"
                   min="1"
@@ -160,9 +156,8 @@ export function AddAgentForm({ tenants, defaultTenantId }: Props) {
                   onChange={(e) => setForm((f) => ({ ...f, max_turns: e.target.value }))}
                   required
                 />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">Max Budget</label>
+              </FormField>
+              <FormField label="Max Budget">
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
                   <Input
@@ -176,9 +171,9 @@ export function AddAgentForm({ tenants, defaultTenantId }: Props) {
                     required
                   />
                 </div>
-              </div>
+              </FormField>
             </div>
-            {error && <p className="text-xs text-red-500">{error}</p>}
+            <FormError error={error} />
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="ghost" size="sm" onClick={() => { setOpen(false); resetForm(); }}>Cancel</Button>
               <Button type="submit" size="sm" disabled={saving}>

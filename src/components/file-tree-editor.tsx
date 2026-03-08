@@ -8,7 +8,6 @@ import { json } from "@codemirror/lang-json";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 export interface FlatFile {
@@ -337,10 +336,10 @@ export function FileTreeEditor({
   }
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
+    <div>
+      <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
-          <CardTitle className="text-base">{title}</CardTitle>
+          <h2 className="text-lg font-semibold">{title}</h2>
           {isDirty && !readOnly && <Badge variant="destructive" className="text-xs">Unsaved changes</Badge>}
           {readOnly && <Badge variant="secondary" className="text-xs">Read-only</Badge>}
         </div>
@@ -349,8 +348,8 @@ export function FileTreeEditor({
             {saving ? "Saving..." : saveLabel}
           </Button>
         )}
-      </CardHeader>
-      <CardContent>
+      </div>
+      <div>
         <div className="flex gap-4 min-h-[500px]">
           {/* File tree */}
           <div className="w-64 shrink-0 border border-border rounded-md overflow-hidden">
@@ -439,7 +438,7 @@ export function FileTreeEditor({
             )}
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

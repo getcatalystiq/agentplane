@@ -4,6 +4,7 @@ import { query, execute } from "@/db";
 import { reconnectSandbox } from "@/lib/sandbox";
 import { logger } from "@/lib/logger";
 import { z } from "zod";
+import { verifyCronSecret } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -11,15 +12,7 @@ export const dynamic = "force-dynamic";
 const STUCK_THRESHOLD_MS = (10 + 30) * 60 * 1000;
 
 export const GET = withErrorHandler(async (request: NextRequest) => {
-  // Verify CRON_SECRET — reject if not configured or mismatched
-  const cronSecret = process.env.CRON_SECRET;
-  const authHeader = request.headers.get("authorization");
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-    return jsonResponse(
-      { error: { code: "unauthorized", message: "Invalid cron secret" } },
-      401,
-    );
-  }
+  verifyCronSecret(request);
 
   const cutoff = new Date(Date.now() - STUCK_THRESHOLD_MS);
 

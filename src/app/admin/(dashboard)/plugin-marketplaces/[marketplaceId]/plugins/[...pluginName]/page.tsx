@@ -44,7 +44,7 @@ export default async function PluginEditorPage({
     return (
       <div className="space-y-4">
         <Link href={`/admin/plugin-marketplaces/${marketplaceId}`} className="text-muted-foreground hover:text-foreground text-sm">&larr; Back</Link>
-        <p className="text-sm text-red-500">Failed to load plugin: {treeResult.message}</p>
+        <p className="text-sm text-destructive">Failed to load plugin: {treeResult.message}</p>
       </div>
     );
   }

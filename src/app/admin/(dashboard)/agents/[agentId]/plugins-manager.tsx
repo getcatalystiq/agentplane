@@ -3,9 +3,9 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { SectionHeader } from "@/components/ui/section-header";
 
 interface AgentPlugin {
   marketplace_id: string;
@@ -125,22 +125,21 @@ export function PluginsManager({
   }
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
+    <div>
+      <SectionHeader title="Plugins">
         <div className="flex items-center gap-3">
-          <CardTitle className="text-base">Plugins</CardTitle>
           {isDirty && <Badge variant="destructive" className="text-xs">Unsaved changes</Badge>}
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setDialogOpen(true)}>
+              Add Plugins
+            </Button>
+            <Button onClick={handleSave} disabled={saving || !isDirty} size="sm">
+              {saving ? "Saving..." : "Save Plugins"}
+            </Button>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => setDialogOpen(true)}>
-            Add Plugins
-          </Button>
-          <Button onClick={handleSave} disabled={saving || !isDirty} size="sm">
-            {saving ? "Saving..." : "Save Plugins"}
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
+      </SectionHeader>
+      <div>
         {plugins.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             No plugins enabled. Click &quot;Add Plugins&quot; to browse available plugins.
@@ -158,12 +157,14 @@ export function PluginsManager({
                     from {marketplaceNames[p.marketplace_id] ?? p.marketplace_id.slice(0, 8)}
                   </span>
                 </div>
-                <button
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs text-muted-foreground hover:text-destructive"
                   onClick={() => removePlugin(i)}
-                  className="text-xs text-muted-foreground hover:text-red-500"
                 >
                   Remove
-                </button>
+                </Button>
               </div>
             ))}
           </div>
@@ -249,7 +250,7 @@ export function PluginsManager({
             </div>
           </DialogContent>
         </Dialog>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

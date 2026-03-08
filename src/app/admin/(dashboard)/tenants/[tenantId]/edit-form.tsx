@@ -5,13 +5,16 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { SectionHeader } from "@/components/ui/section-header";
+import { FormField } from "@/components/ui/form-field";
+import { isValidTimezone } from "@/lib/timezone";
 
 interface Tenant {
   id: string;
   name: string;
   status: string;
   monthly_budget_usd: number;
+  timezone: string;
 }
 
 export function TenantEditForm({ tenant }: { tenant: Tenant }) {
@@ -19,14 +22,22 @@ export function TenantEditForm({ tenant }: { tenant: Tenant }) {
   const [name, setName] = useState(tenant.name);
   const [budget, setBudget] = useState(tenant.monthly_budget_usd.toString());
   const [status, setStatus] = useState(tenant.status);
+  const [timezone, setTimezone] = useState(tenant.timezone);
   const [saving, setSaving] = useState(false);
+  const [timezoneError, setTimezoneError] = useState<string | null>(null);
 
   const isDirty =
     name !== tenant.name ||
     status !== tenant.status ||
-    budget !== tenant.monthly_budget_usd.toString();
+    budget !== tenant.monthly_budget_usd.toString() ||
+    timezone !== tenant.timezone;
 
   async function handleSave() {
+    if (!isValidTimezone(timezone)) {
+      setTimezoneError("Invalid timezone");
+      return;
+    }
+    setTimezoneError(null);
     setSaving(true);
     try {
       await fetch(`/api/admin/tenants/${tenant.id}`, {
@@ -36,6 +47,7 @@ export function TenantEditForm({ tenant }: { tenant: Tenant }) {
           name,
           status,
           monthly_budget_usd: parseFloat(budget),
+          timezone,
         }),
       });
       router.refresh();
@@ -45,34 +57,36 @@ export function TenantEditForm({ tenant }: { tenant: Tenant }) {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Edit Tenant</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-3 gap-4">
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Name</label>
+    <div>
+      <SectionHeader title="Edit Tenant" />
+      <div>
+        <div className="grid grid-cols-4 gap-4">
+          <FormField label="Name">
             <Input value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Monthly Budget (USD)</label>
+          </FormField>
+          <FormField label="Monthly Budget (USD)">
             <Input type="number" step="0.01" value={budget} onChange={(e) => setBudget(e.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Status</label>
+          </FormField>
+          <FormField label="Status">
             <Select value={status} onChange={(e) => setStatus(e.target.value)}>
               <option value="active">active</option>
               <option value="suspended">suspended</option>
             </Select>
-          </div>
+          </FormField>
+          <FormField label="Timezone" error={timezoneError}>
+            <Input
+              value={timezone}
+              onChange={(e) => { setTimezone(e.target.value); setTimezoneError(null); }}
+              placeholder="UTC"
+            />
+          </FormField>
         </div>
         <div className="mt-4 flex justify-end">
           <Button onClick={handleSave} disabled={saving || !isDirty} size="sm">
             {saving ? "Saving..." : "Save Changes"}
           </Button>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { DetailPageHeader } from "@/components/ui/detail-page-header";
+import { SectionHeader } from "@/components/ui/section-header";
 import { queryOne } from "@/db";
 import { PluginMarketplaceRow } from "@/lib/validation";
 import { listPlugins } from "@/lib/plugins";
@@ -39,14 +41,12 @@ export default async function MarketplaceDetailPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <div className="flex items-center gap-3">
-          <Link href="/admin/plugin-marketplaces" className="text-muted-foreground hover:text-foreground text-sm">&larr; Marketplaces</Link>
-          <span className="text-muted-foreground">/</span>
-          <h1 className="text-2xl font-semibold">{marketplace.name}</h1>
-          {isOwned && <Badge variant="secondary">Owned</Badge>}
-        </div>
-        <p className="text-sm text-muted-foreground mt-1">
+      <DetailPageHeader
+        backHref="/admin/plugin-marketplaces"
+        backLabel="Marketplaces"
+        title={marketplace.name}
+        badge={isOwned ? <Badge variant="secondary">Owned</Badge> : undefined}
+        subtitle={
           <a
             href={`https://github.com/${marketplace.github_repo}`}
             target="_blank"
@@ -55,8 +55,8 @@ export default async function MarketplaceDetailPage({
           >
             {marketplace.github_repo}
           </a>
-        </p>
-      </div>
+        }
+      />
 
       {/* Token configuration */}
       <Card>
@@ -70,9 +70,9 @@ export default async function MarketplaceDetailPage({
 
       {/* Plugin list */}
       <div>
-        <h2 className="text-lg font-semibold mb-3">Plugins</h2>
+        <SectionHeader title="Plugins" />
         {!pluginsResult.ok ? (
-          <p className="text-sm text-red-500">Failed to load plugins: {pluginsResult.message}</p>
+          <p className="text-sm text-destructive">Failed to load plugins: {pluginsResult.message}</p>
         ) : pluginsResult.data.length === 0 ? (
           <p className="text-sm text-muted-foreground">No plugins found in this marketplace.</p>
         ) : (

@@ -238,7 +238,7 @@ export default function PlaygroundPage({ params }: { params: Promise<{ agentId: 
           )}
           <span className="text-xs text-muted-foreground ml-1">⌘+Enter to run</span>
         </div>
-        {error && <p className="text-sm text-red-500">{error}</p>}
+        {error && <p className="text-sm text-destructive">{error}</p>}
       </div>
 
       {(running || events.length > 0) && (

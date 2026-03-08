@@ -4,7 +4,7 @@ import { authenticateApiKey } from "@/lib/auth";
 import { withErrorHandler, jsonResponse } from "@/lib/api";
 import { query } from "@/db";
 import { getAgentForTenant } from "@/lib/agents";
-import { McpConnectionRow, McpServerRow } from "@/lib/validation";
+import { McpConnectionRow } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
 

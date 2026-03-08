@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { FormField } from "@/components/ui/form-field";
+import { FormError } from "@/components/ui/form-error";
 
 export function AddTenantForm() {
   const router = useRouter();
@@ -77,17 +79,15 @@ export function AddTenantForm() {
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-3">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">Name</label>
+              <FormField label="Name">
                 <Input
                   value={form.name}
                   onChange={(e) => handleNameChange(e.target.value)}
                   placeholder="Acme Corp"
                   required
                 />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">Slug</label>
+              </FormField>
+              <FormField label="Slug" hint="Lowercase alphanumeric with hyphens">
                 <Input
                   value={form.slug}
                   onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value }))}
@@ -95,10 +95,8 @@ export function AddTenantForm() {
                   pattern="^[a-z0-9-]+$"
                   required
                 />
-                <p className="text-xs text-muted-foreground mt-1">Lowercase alphanumeric with hyphens</p>
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">Monthly Budget (USD)</label>
+              </FormField>
+              <FormField label="Monthly Budget (USD)">
                 <Input
                   type="number"
                   step="0.01"
@@ -107,8 +105,8 @@ export function AddTenantForm() {
                   onChange={(e) => setForm((f) => ({ ...f, monthly_budget_usd: e.target.value }))}
                   required
                 />
-              </div>
-              {error && <p className="text-xs text-red-500">{error}</p>}
+              </FormField>
+              <FormError error={error} />
               <div className="flex justify-end gap-2 pt-2">
                 <Button type="button" variant="ghost" size="sm" onClick={handleClose}>Cancel</Button>
                 <Button type="submit" size="sm" disabled={saving}>

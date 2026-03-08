@@ -7,7 +7,7 @@ import { fetchMcpToolList } from "@/lib/mcp-oauth";
 import { decrypt } from "@/lib/crypto";
 import { getEnv } from "@/lib/env";
 import { NotFoundError } from "@/lib/errors";
-import type { AgentId, McpServerId, TenantId } from "@/lib/types";
+import type { AgentId, McpServerId } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 

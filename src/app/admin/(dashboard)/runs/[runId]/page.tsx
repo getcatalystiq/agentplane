@@ -1,8 +1,9 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { MetricCard } from "@/components/ui/metric-card";
 import { RunStatusBadge } from "@/components/ui/run-status-badge";
+import { DetailPageHeader } from "@/components/ui/detail-page-header";
 import { LocalDate } from "@/components/local-date";
 import { queryOne } from "@/db";
 import { RunRow } from "@/lib/validation";
@@ -46,71 +47,37 @@ export default async function RunDetailPage({
     }
   }
 
+  const backHref = from === "agent" ? `/admin/agents/${run.agent_id}` : "/admin/runs";
+  const backLabel = from === "agent" ? "Agent" : "Runs";
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        {from === "agent" ? (
-          <Link href={`/admin/agents/${run.agent_id}`} className="text-muted-foreground hover:text-foreground text-sm">&larr; Agent</Link>
-        ) : (
-          <Link href="/admin/runs" className="text-muted-foreground hover:text-foreground text-sm">&larr; Runs</Link>
-        )}
-        <span className="text-muted-foreground">/</span>
-        <h1 className="text-2xl font-semibold font-mono">{run.id.slice(0, 12)}...</h1>
-        <RunStatusBadge status={run.status} />
-      </div>
+      <DetailPageHeader
+        backHref={backHref}
+        backLabel={backLabel}
+        title={<span className="font-mono">{run.id.slice(0, 12)}...</span>}
+        badge={<RunStatusBadge status={run.status} />}
+      />
 
       {/* Metadata cards */}
       <div className={`grid gap-4 ${run.result_summary ? "grid-cols-5" : "grid-cols-4"}`}>
         {run.result_summary && (
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Result Summary</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold line-clamp-1">{run.result_summary}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{run.status}</p>
-            </CardContent>
-          </Card>
+          <MetricCard label="Result Summary">
+            <span className="line-clamp-1">{run.result_summary}</span>
+            <p className="text-xs text-muted-foreground mt-0.5 font-normal">{run.status}</p>
+          </MetricCard>
         )}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Cost</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold font-mono">${run.cost_usd.toFixed(4)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Turns</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">{run.num_turns}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Duration</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">
-              {run.duration_ms > 0 ? `${(run.duration_ms / 1000).toFixed(1)}s` : "—"}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Tokens</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">
-              {(run.total_input_tokens + run.total_output_tokens).toLocaleString()}
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {run.total_input_tokens.toLocaleString()} in / {run.total_output_tokens.toLocaleString()} out
-            </p>
-          </CardContent>
-        </Card>
+        <MetricCard label="Cost"><span className="font-mono">${run.cost_usd.toFixed(4)}</span></MetricCard>
+        <MetricCard label="Turns">{run.num_turns}</MetricCard>
+        <MetricCard label="Duration">
+          {run.duration_ms > 0 ? `${(run.duration_ms / 1000).toFixed(1)}s` : "—"}
+        </MetricCard>
+        <MetricCard label="Tokens">
+          {(run.total_input_tokens + run.total_output_tokens).toLocaleString()}
+          <p className="text-xs text-muted-foreground mt-0.5 font-normal">
+            {run.total_input_tokens.toLocaleString()} in / {run.total_output_tokens.toLocaleString()} out
+          </p>
+        </MetricCard>
       </div>
 
       {/* Errors */}
