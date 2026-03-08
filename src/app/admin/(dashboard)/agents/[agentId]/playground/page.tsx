@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState, useRef } from "react";
+import { use, useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -209,6 +209,12 @@ export default function PlaygroundPage({ params }: { params: Promise<{ agentId: 
   const [polling, setPolling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [events, streamingText]);
 
   async function pollForCompletion(runId: string, eventsBeforeDetach: number) {
     setPolling(true);
@@ -411,7 +417,7 @@ export default function PlaygroundPage({ params }: { params: Promise<{ agentId: 
       </div>
 
       {(running || events.length > 0) && (
-        <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-4 min-h-32 max-h-[60vh] overflow-y-auto">
+        <div ref={scrollRef} className="rounded-lg border border-border bg-muted/20 p-4 space-y-4 min-h-32 max-h-[60vh] overflow-y-auto">
           {events.map((ev, i) => renderEvent(ev, i))}
           {streamingText && (
             <div className="space-y-1">
