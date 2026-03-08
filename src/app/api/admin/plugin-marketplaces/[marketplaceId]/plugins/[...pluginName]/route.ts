@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryOne } from "@/db";
-import { PluginMarketplaceRow, PluginMcpJsonSchema, SafePluginFilename } from "@/lib/validation";
+import { PluginMarketplaceRow, PluginMcpJsonSchema, SafePluginFilename, validateFrontmatter } from "@/lib/validation";
 import { withErrorHandler } from "@/lib/api";
 import { NotFoundError, ForbiddenError, ConflictError, ValidationError } from "@/lib/errors";
 import { fetchRepoTree, fetchFileContent, pushFiles, getDefaultBranch } from "@/lib/github";
@@ -126,6 +126,22 @@ export const PUT = withErrorHandler(async (request: NextRequest, context) => {
     const validation = SafePluginFilename.safeParse(filename);
     if (!validation.success) {
       throw new ValidationError(`Unsafe filename: ${filename}`);
+    }
+  }
+
+  // Validate frontmatter in skill SKILL.md files
+  for (const file of input.skills) {
+    if (file.path.endsWith("/SKILL.md") || file.path === "SKILL.md") {
+      const error = validateFrontmatter(file.content, `SKILL.md '${file.path}'`);
+      if (error) throw new ValidationError(error);
+    }
+  }
+
+  // Validate frontmatter in command .md files
+  for (const file of input.commands) {
+    if (file.path.endsWith(".md")) {
+      const error = validateFrontmatter(file.content, `command '${file.path}'`);
+      if (error) throw new ValidationError(error);
     }
   }
 

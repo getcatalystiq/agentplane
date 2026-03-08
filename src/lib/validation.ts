@@ -142,6 +142,48 @@ export const PluginMcpJsonSchema = z.object({
   ).optional(),
 });
 
+// --- Plugin File Content Validation ---
+
+/**
+ * Validate YAML frontmatter in a markdown file.
+ * Returns null if valid, or an error message string.
+ */
+export function validateFrontmatter(content: string, fileType: string): string | null {
+  const lines = content.split("\n");
+
+  if (lines[0]?.trim() !== "---") {
+    return `${fileType} must start with '---' on line 1`;
+  }
+
+  const closingIndex = lines.findIndex((line, i) => i > 0 && line.trim() === "---");
+  if (closingIndex === -1) {
+    return `${fileType} has no closing '---' for frontmatter`;
+  }
+
+  const frontmatterLines = lines.slice(1, closingIndex);
+
+  // Check indentation before presence (indented keys shouldn't count as present)
+  const hasIndentedName = frontmatterLines.some(line => /^\s+name:/.test(line));
+  const hasUnindentedName = frontmatterLines.some(line => /^name:/.test(line));
+  if (hasIndentedName && !hasUnindentedName) {
+    return `${fileType} 'name' key is indented — top-level YAML keys must not have leading spaces`;
+  }
+  if (!hasUnindentedName) {
+    return `${fileType} frontmatter missing 'name' field`;
+  }
+
+  const hasIndentedDescription = frontmatterLines.some(line => /^\s+description:/.test(line));
+  const hasUnindentedDescription = frontmatterLines.some(line => /^description:/.test(line));
+  if (hasIndentedDescription && !hasUnindentedDescription) {
+    return `${fileType} 'description' key is indented — top-level YAML keys must not have leading spaces`;
+  }
+  if (!hasUnindentedDescription) {
+    return `${fileType} frontmatter missing 'description' field`;
+  }
+
+  return null;
+}
+
 // GitHub API response schemas
 export const GitHubTreeEntrySchema = z.object({
   path: z.string(),

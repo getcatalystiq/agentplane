@@ -5,6 +5,7 @@ import {
   CreateApiKeySchema,
   CreateRunSchema,
   PaginationSchema,
+  validateFrontmatter,
 } from "@/lib/validation";
 
 describe("CreateAgentSchema", () => {
@@ -299,5 +300,48 @@ describe("SkillsSchema boundary", () => {
         skills: [{ folder: "folder", files: [] }],
       }),
     ).toThrow();
+  });
+});
+
+describe("validateFrontmatter", () => {
+  const validContent = `---
+name: My Skill
+description: Does something useful
+---
+
+# Content here`;
+
+  it("returns null for valid frontmatter", () => {
+    expect(validateFrontmatter(validContent, "SKILL.md")).toBeNull();
+  });
+
+  it("rejects missing opening ---", () => {
+    const content = `name: test\n---\n# Body`;
+    expect(validateFrontmatter(content, "SKILL.md")).toContain("must start with '---'");
+  });
+
+  it("rejects missing closing ---", () => {
+    const content = `---\nname: test\ndescription: foo\n# No closing`;
+    expect(validateFrontmatter(content, "SKILL.md")).toContain("no closing '---'");
+  });
+
+  it("rejects missing name field", () => {
+    const content = `---\ndescription: foo\n---\n`;
+    expect(validateFrontmatter(content, "SKILL.md")).toContain("missing 'name'");
+  });
+
+  it("rejects missing description field", () => {
+    const content = `---\nname: foo\n---\n`;
+    expect(validateFrontmatter(content, "SKILL.md")).toContain("missing 'description'");
+  });
+
+  it("rejects indented name key", () => {
+    const content = `---\n  name: foo\ndescription: bar\n---\n`;
+    expect(validateFrontmatter(content, "SKILL.md")).toContain("indented");
+  });
+
+  it("rejects indented description key", () => {
+    const content = `---\nname: foo\n  description: bar\n---\n`;
+    expect(validateFrontmatter(content, "SKILL.md")).toContain("indented");
   });
 });
