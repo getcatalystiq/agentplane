@@ -108,7 +108,7 @@ export function TenantEditForm({ tenant }: { tenant: Tenant }) {
   }
 
   return (
-    <div>
+    <div className="rounded-lg border border-border p-5">
       <SectionHeader title="Details">
         <Button onClick={handleSave} disabled={saving || !isDirty} size="sm">
           {saving ? "Saving..." : "Save Changes"}

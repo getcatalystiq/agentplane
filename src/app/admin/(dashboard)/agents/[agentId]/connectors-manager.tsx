@@ -295,7 +295,7 @@ export function ConnectorsManager({ agentId, toolkits: initialToolkits, composio
       Disconnect <span className="font-medium text-foreground">{confirmMcpDisconnect?.server_name}</span> from this agent?
     </ConfirmDialog>
 
-    <div>
+    <div className="rounded-lg border border-border p-5">
       <SectionHeader title="Connectors">
         <Button
           size="sm"
