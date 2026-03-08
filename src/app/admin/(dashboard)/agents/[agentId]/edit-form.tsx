@@ -65,8 +65,12 @@ export function AgentEditForm({ agent }: { agent: Agent }) {
 
   return (
     <div>
-      <SectionHeader title="Details" />
-      <div className="space-y-4">
+      <SectionHeader title="Details">
+        <Button onClick={handleSave} disabled={saving || !isDirty} size="sm">
+          {saving ? "Saving..." : "Save Changes"}
+        </Button>
+      </SectionHeader>
+      <div>
         <div className="grid grid-cols-12 gap-4">
           <div className="col-span-2">
             <FormField label="Name">
@@ -114,11 +118,6 @@ export function AgentEditForm({ agent }: { agent: Agent }) {
               </Select>
             </FormField>
           </div>
-        </div>
-        <div className="flex justify-end">
-          <Button onClick={handleSave} disabled={saving || !isDirty} size="sm">
-            {saving ? "Saving..." : "Save Changes"}
-          </Button>
         </div>
       </div>
     </div>

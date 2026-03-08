@@ -101,26 +101,31 @@ export function ScheduleEditor({ agentId, initialSchedule, timezone }: ScheduleE
   return (
     <div>
       <SectionHeader title="Schedule">
-        {canEnable && (
-          <label className="flex items-center gap-2 cursor-pointer">
-            <span className="text-sm text-muted-foreground">{enabled ? "Enabled" : "Disabled"}</span>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={enabled}
-              onClick={() => setEnabled(!enabled)}
-              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                enabled ? "bg-primary" : "bg-muted"
-              }`}
-            >
-              <span
-                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-background shadow-lg ring-0 transition-transform ${
-                  enabled ? "translate-x-4" : "translate-x-0"
+        <div className="flex items-center gap-3">
+          {canEnable && (
+            <label className="flex items-center gap-2 cursor-pointer">
+              <span className="text-sm text-muted-foreground">{enabled ? "Enabled" : "Disabled"}</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={enabled}
+                onClick={() => setEnabled(!enabled)}
+                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                  enabled ? "bg-primary" : "bg-muted"
                 }`}
-              />
-            </button>
-          </label>
-        )}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-background shadow-lg ring-0 transition-transform ${
+                    enabled ? "translate-x-4" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </label>
+          )}
+          <Button onClick={handleSave} disabled={saving || !isDirty} size="sm">
+            {saving ? "Saving..." : "Save Schedule"}
+          </Button>
+        </div>
       </SectionHeader>
       <div className="space-y-4">
         <FormField label="Frequency">
@@ -192,11 +197,6 @@ export function ScheduleEditor({ agentId, initialSchedule, timezone }: ScheduleE
         )}
 
         <FormError error={error} />
-        <div className="flex justify-end pt-2">
-          <Button onClick={handleSave} disabled={saving || !isDirty} size="sm">
-            {saving ? "Saving..." : "Save Schedule"}
-          </Button>
-        </div>
       </div>
     </div>
   );

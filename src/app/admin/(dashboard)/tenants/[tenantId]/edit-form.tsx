@@ -109,34 +109,31 @@ export function TenantEditForm({ tenant }: { tenant: Tenant }) {
 
   return (
     <div>
-      <SectionHeader title="Details" />
-      <div>
-        <div className="grid grid-cols-4 gap-4">
-          <FormField label="Name">
-            <Input value={name} onChange={(e) => setName(e.target.value)} />
-          </FormField>
-          <FormField label="Monthly Budget (USD)">
-            <Input type="number" step="0.01" value={budget} onChange={(e) => setBudget(e.target.value)} />
-          </FormField>
-          <FormField label="Status">
-            <Select value={status} onChange={(e) => setStatus(e.target.value)}>
-              <option value="active">active</option>
-              <option value="suspended">suspended</option>
-            </Select>
-          </FormField>
-          <FormField label="Timezone">
-            <Select value={timezone} onChange={(e) => setTimezone(e.target.value)}>
-              {TIMEZONES.map((tz) => (
-                <option key={tz} value={tz}>{tz.replace(/_/g, " ")}</option>
-              ))}
-            </Select>
-          </FormField>
-        </div>
-        <div className="mt-4 flex justify-end">
-          <Button onClick={handleSave} disabled={saving || !isDirty} size="sm">
-            {saving ? "Saving..." : "Save Changes"}
-          </Button>
-        </div>
+      <SectionHeader title="Details">
+        <Button onClick={handleSave} disabled={saving || !isDirty} size="sm">
+          {saving ? "Saving..." : "Save Changes"}
+        </Button>
+      </SectionHeader>
+      <div className="grid grid-cols-4 gap-4">
+        <FormField label="Name">
+          <Input value={name} onChange={(e) => setName(e.target.value)} />
+        </FormField>
+        <FormField label="Monthly Budget (USD)">
+          <Input type="number" step="0.01" value={budget} onChange={(e) => setBudget(e.target.value)} />
+        </FormField>
+        <FormField label="Status">
+          <Select value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="active">active</option>
+            <option value="suspended">suspended</option>
+          </Select>
+        </FormField>
+        <FormField label="Timezone">
+          <Select value={timezone} onChange={(e) => setTimezone(e.target.value)}>
+            {TIMEZONES.map((tz) => (
+              <option key={tz} value={tz}>{tz.replace(/_/g, " ")}</option>
+            ))}
+          </Select>
+        </FormField>
       </div>
     </div>
   );
