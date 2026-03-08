@@ -23,6 +23,8 @@ const AgentWithTenant = z.object({
   last_run_at: z.coerce.string().nullable(),
   mcp_active_slugs: z.array(z.string()),
   mcp_unhealthy_slugs: z.array(z.string()),
+  schedule_enabled: z.boolean(),
+  schedule_frequency: z.string().nullable(),
 });
 
 export const dynamic = "force-dynamic";
@@ -33,6 +35,7 @@ export default async function AgentsPage() {
     AgentWithTenant,
     `SELECT a.id, a.tenant_id, t.name AS tenant_name, a.name, a.description, a.model,
        a.permission_mode, a.composio_toolkits, a.max_turns, a.max_budget_usd, a.created_at,
+       a.schedule_enabled, a.schedule_frequency,
        COUNT(DISTINCT r.id)::int AS run_count,
        MAX(r.created_at) AS last_run_at,
        COALESCE(array_agg(DISTINCT ms.slug) FILTER (WHERE ms.slug IS NOT NULL AND mc.status = 'active'), '{}') AS mcp_active_slugs,
@@ -62,6 +65,7 @@ export default async function AgentsPage() {
           <Th>Tenant</Th>
           <Th>Model</Th>
           <Th>Connectors</Th>
+          <Th>Schedule</Th>
           <Th align="right">Runs</Th>
           <Th>Last Run</Th>
           <Th align="right" />
@@ -100,6 +104,13 @@ export default async function AgentsPage() {
                   <span className="text-muted-foreground text-xs">—</span>
                 )}
               </td>
+              <td className="p-3">
+                {a.schedule_enabled ? (
+                  <Badge variant="default" className="text-xs">{a.schedule_frequency ?? "scheduled"}</Badge>
+                ) : (
+                  <span className="text-muted-foreground text-xs">—</span>
+                )}
+              </td>
               <td className="p-3 text-right">{a.run_count}</td>
               <td className="p-3 text-muted-foreground text-xs">
                 {a.last_run_at ? new Date(a.last_run_at).toLocaleString() : "—"}
@@ -109,7 +120,7 @@ export default async function AgentsPage() {
               </td>
             </AdminTableRow>
           ))}
-          {agents.length === 0 && <EmptyRow colSpan={8}>No agents found</EmptyRow>}
+          {agents.length === 0 && <EmptyRow colSpan={9}>No agents found</EmptyRow>}
         </tbody>
       </AdminTable>
     </div>
