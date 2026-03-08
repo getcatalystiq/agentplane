@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface ApiKey {
   id: string;
@@ -23,7 +24,9 @@ export function ApiKeysSection({ tenantId, initialKeys }: { tenantId: string; in
   const [newKeyName, setNewKeyName] = useState("default");
   const [showCreate, setShowCreate] = useState(false);
   const [rawKey, setRawKey] = useState<string | null>(null);
-  const [revokingId, setRevokingId] = useState<string | null>(null);
+  const [revokeTarget, setRevokeTarget] = useState<ApiKey | null>(null);
+  const [revoking, setRevoking] = useState(false);
+  const [revokeError, setRevokeError] = useState("");
 
   async function handleCreate() {
     setCreating(true);
@@ -43,14 +46,23 @@ export function ApiKeysSection({ tenantId, initialKeys }: { tenantId: string; in
     }
   }
 
-  async function handleRevoke(keyId: string) {
-    if (!confirm("Revoke this API key? This cannot be undone.")) return;
-    setRevokingId(keyId);
+  async function handleRevoke() {
+    if (!revokeTarget) return;
+    setRevoking(true);
+    setRevokeError("");
     try {
-      await fetch(`/api/admin/tenants/${tenantId}/keys/${keyId}`, { method: "DELETE" });
+      const res = await fetch(`/api/admin/tenants/${tenantId}/keys/${revokeTarget.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setRevokeError(data?.error?.message ?? `Error ${res.status}`);
+        return;
+      }
+      setRevokeTarget(null);
       router.refresh();
+    } catch (err) {
+      setRevokeError(err instanceof Error ? err.message : "Unknown error");
     } finally {
-      setRevokingId(null);
+      setRevoking(false);
     }
   }
 
@@ -119,10 +131,9 @@ export function ApiKeysSection({ tenantId, initialKeys }: { tenantId: string; in
                   <Button
                     size="sm"
                     variant="destructive"
-                    onClick={() => handleRevoke(k.id)}
-                    disabled={revokingId === k.id}
+                    onClick={() => setRevokeTarget(k)}
                   >
-                    {revokingId === k.id ? "Revoking..." : "Revoke"}
+                    Revoke
                   </Button>
                 </td>
               </tr>
@@ -145,6 +156,19 @@ export function ApiKeysSection({ tenantId, initialKeys }: { tenantId: string; in
           </tbody>
         </table>
       </div>
+
+      <ConfirmDialog
+        open={!!revokeTarget}
+        onOpenChange={(open) => { if (!open) setRevokeTarget(null); }}
+        title="Revoke API Key"
+        confirmLabel="Revoke"
+        loadingLabel="Revoking..."
+        loading={revoking}
+        error={revokeError}
+        onConfirm={handleRevoke}
+      >
+        Revoke API key <span className="font-medium text-foreground">{revokeTarget?.name}</span> ({revokeTarget?.key_prefix}...)? This cannot be undone.
+      </ConfirmDialog>
     </div>
   );
 }

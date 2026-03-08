@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export function TokenConfig({ marketplaceId, hasToken }: { marketplaceId: string; hasToken: boolean }) {
   const router = useRouter();
@@ -12,6 +13,9 @@ export function TokenConfig({ marketplaceId, hasToken }: { marketplaceId: string
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [token, setToken] = useState("");
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [removeError, setRemoveError] = useState("");
 
   async function handleSave() {
     setSaving(true);
@@ -38,9 +42,8 @@ export function TokenConfig({ marketplaceId, hasToken }: { marketplaceId: string
   }
 
   async function handleRemove() {
-    if (!confirm("Remove GitHub token? This will make the marketplace read-only.")) return;
-    setSaving(true);
-    setError("");
+    setRemoving(true);
+    setRemoveError("");
     try {
       const res = await fetch(`/api/admin/plugin-marketplaces/${marketplaceId}`, {
         method: "PATCH",
@@ -49,14 +52,15 @@ export function TokenConfig({ marketplaceId, hasToken }: { marketplaceId: string
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(data?.error?.message ?? `Error ${res.status}`);
+        setRemoveError(data?.error?.message ?? `Error ${res.status}`);
         return;
       }
+      setConfirmRemove(false);
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setRemoveError(err instanceof Error ? err.message : "Unknown error");
     } finally {
-      setSaving(false);
+      setRemoving(false);
     }
   }
 
@@ -66,7 +70,7 @@ export function TokenConfig({ marketplaceId, hasToken }: { marketplaceId: string
         <>
           <span className="text-xs text-muted-foreground">Token configured</span>
           <Button size="sm" variant="ghost" onClick={() => setOpen(true)}>Update</Button>
-          <Button size="sm" variant="ghost" onClick={handleRemove} disabled={saving}>Remove</Button>
+          <Button size="sm" variant="ghost" onClick={() => setConfirmRemove(true)} disabled={removing}>Remove</Button>
         </>
       ) : (
         <Button size="sm" variant="outline" onClick={() => setOpen(true)}>Configure GitHub Token</Button>
@@ -108,6 +112,19 @@ export function TokenConfig({ marketplaceId, hasToken }: { marketplaceId: string
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={confirmRemove}
+        onOpenChange={setConfirmRemove}
+        title="Remove GitHub Token"
+        confirmLabel="Remove"
+        loadingLabel="Removing..."
+        loading={removing}
+        error={removeError}
+        onConfirm={handleRemove}
+      >
+        Remove the GitHub token? This will make the marketplace read-only.
+      </ConfirmDialog>
     </div>
   );
 }
