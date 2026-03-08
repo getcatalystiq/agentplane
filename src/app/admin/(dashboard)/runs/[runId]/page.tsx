@@ -8,6 +8,7 @@ import { LocalDate } from "@/components/local-date";
 import { queryOne } from "@/db";
 import { RunRow } from "@/lib/validation";
 import { TranscriptViewer } from "./transcript-viewer";
+import { CancelRunButton } from "./cancel-run-button";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +58,11 @@ export default async function RunDetailPage({
         backLabel={backLabel}
         title={<span className="font-mono">{run.id.slice(0, 12)}...</span>}
         badge={<RunStatusBadge status={run.status} />}
+        actions={
+          (run.status === "running" || run.status === "pending") ? (
+            <CancelRunButton runId={run.id} />
+          ) : undefined
+        }
       />
 
       {/* Metadata cards */}

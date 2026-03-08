@@ -129,14 +129,89 @@ function renderEvent(event: PlaygroundEvent, idx: number) {
   return null;
 }
 
+const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled", "timed_out"]);
+
 export default function PlaygroundPage({ params }: { params: Promise<{ agentId: string }> }) {
   const { agentId } = use(params);
   const [prompt, setPrompt] = useState("");
   const [events, setEvents] = useState<PlaygroundEvent[]>([]);
   const [streamingText, setStreamingText] = useState("");
   const [running, setRunning] = useState(false);
+  const [polling, setPolling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  async function pollForCompletion(runId: string, eventsBeforeDetach: number) {
+    setPolling(true);
+    let delay = 3000;
+    const maxDelay = 10_000;
+
+    try {
+      while (true) {
+        if (abortRef.current?.signal.aborted) break;
+
+        await new Promise((r) => setTimeout(r, delay));
+        if (abortRef.current?.signal.aborted) break;
+
+        const res = await fetch(`/api/admin/runs/${runId}`, {
+          signal: abortRef.current?.signal,
+        });
+        if (!res.ok) {
+          delay = Math.min(delay * 2, maxDelay);
+          continue;
+        }
+
+        const data = await res.json();
+        const run = data.run;
+
+        if (TERMINAL_STATUSES.has(run.status)) {
+          // Append transcript events that came after the stream detached
+          const transcript = data.transcript as PlaygroundEvent[] | undefined;
+          if (transcript && transcript.length > 0) {
+            // The transcript contains the full run; skip events we already have
+            // and append any new ones (assistant, tool_use, tool_result, result, error)
+            const newEvents = transcript.slice(eventsBeforeDetach).filter(
+              (ev: PlaygroundEvent) =>
+                ev.type !== "heartbeat" &&
+                ev.type !== "text_delta" &&
+                ev.type !== "run_started" &&
+                ev.type !== "queued" &&
+                ev.type !== "sandbox_starting"
+            );
+            if (newEvents.length > 0) {
+              setEvents((prev) => [...prev, ...newEvents]);
+            }
+          }
+
+          // If no transcript events but run is terminal, synthesize a result event
+          if (!transcript || transcript.length === 0) {
+            const syntheticResult: PlaygroundEvent = {
+              type: "result",
+              subtype: run.status === "completed" ? "success" : "failed",
+              cost_usd: run.cost_usd,
+              num_turns: run.num_turns,
+              duration_ms: run.duration_ms,
+            };
+            if (run.error_type) {
+              syntheticResult.result = run.error_type;
+            }
+            setEvents((prev) => [...prev, syntheticResult]);
+          }
+          break;
+        }
+
+        delay = Math.min(delay * 2, maxDelay);
+      }
+    } catch (err) {
+      if ((err as Error)?.name !== "AbortError") {
+        setError("Lost connection while polling for results");
+      }
+    } finally {
+      setPolling(false);
+      setRunning(false);
+      abortRef.current = null;
+    }
+  }
 
   async function handleRun() {
     if (!prompt.trim() || running) return;
@@ -145,9 +220,15 @@ export default function PlaygroundPage({ params }: { params: Promise<{ agentId: 
     setEvents([]);
     setStreamingText("");
     setError(null);
+    setPolling(false);
 
     const abort = new AbortController();
     abortRef.current = abort;
+
+    let runId: string | null = null;
+    // Track count of meaningful events (excluding stream_detached itself)
+    // so we can skip them in the transcript
+    let meaningfulEventCount = 0;
 
     try {
       const res = await fetch(`/api/admin/agents/${agentId}/runs`, {
@@ -180,11 +261,28 @@ export default function PlaygroundPage({ params }: { params: Promise<{ agentId: 
           if (!trimmed) continue;
           try {
             const event = JSON.parse(trimmed) as PlaygroundEvent;
+
+            if (event.type === "run_started" && event.run_id) {
+              runId = event.run_id as string;
+            }
+
             if (event.type === "text_delta") {
               setStreamingText((prev) => prev + (event.text as string ?? ""));
+            } else if (event.type === "stream_detached") {
+              setStreamingText("");
+              setEvents((prev) => [...prev, event]);
+              // Start polling for completion
+              if (runId) {
+                pollForCompletion(runId, meaningfulEventCount);
+                return; // Exit stream reading, polling takes over
+              }
             } else {
               if (event.type === "assistant") setStreamingText("");
               setEvents((prev) => [...prev, event]);
+              // Count events that would appear in transcript (not heartbeats/text_delta)
+              if (event.type !== "heartbeat") {
+                meaningfulEventCount++;
+              }
             }
           } catch {
             // Skip non-JSON lines
@@ -196,8 +294,10 @@ export default function PlaygroundPage({ params }: { params: Promise<{ agentId: 
         setError(err instanceof Error ? err.message : "Unknown error");
       }
     } finally {
-      setRunning(false);
-      abortRef.current = null;
+      if (!polling) {
+        setRunning(false);
+        abortRef.current = null;
+      }
     }
   }
 
@@ -253,7 +353,7 @@ export default function PlaygroundPage({ params }: { params: Promise<{ agentId: 
           )}
           {running && !streamingText && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span className="animate-pulse">●</span> Running…
+              <span className="animate-pulse">●</span> {polling ? "Run continues in background, waiting for results…" : "Running…"}
             </div>
           )}
         </div>
