@@ -1,6 +1,4 @@
 import { getOrCreateComposioMcpServer } from "./composio";
-import { encrypt } from "./crypto";
-import { getEnv } from "./env";
 import { execute } from "@/db";
 import { logger } from "./logger";
 import {
@@ -33,8 +31,6 @@ export async function buildMcpConfig(
   // --- Composio MCP servers ---
   if (agent.composio_toolkits.length > 0) {
     try {
-      const env = getEnv();
-
       // Always call getOrCreateComposioMcpServer so the Composio server is kept
       // in sync with the current toolkit list (e.g. newly added toolkits are
       // picked up on every run rather than only on first-time setup).
