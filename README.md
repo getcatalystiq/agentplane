@@ -21,16 +21,45 @@ A multi-tenant platform for running [Claude Agent SDK](https://docs.anthropic.co
 
 ## How It Works
 
+### One-shot runs
+
+Fire-and-forget agent execution. A sandbox is created, the agent runs, events stream back, and the sandbox is torn down.
+
 ```
-1. POST /api/agents/:id/runs  →  2. Sandbox created with Claude Agent SDK + MCP servers
-                                           ↓
-4. Transcript stored, usage recorded  ←  3. Events stream back over NDJSON
+POST /api/runs  →  Sandbox created  →  Events stream (NDJSON)  →  Transcript stored
 ```
 
 ```bash
-curl -X POST $BASE_URL/api/runs \
+curl -N -X POST $BASE_URL/api/runs \
   -H "Authorization: Bearer $API_KEY" \
   -d '{"agent_id": "ag_01", "prompt": "Deploy the app"}'
+```
+
+### Multi-turn sessions
+
+Persistent conversations where the sandbox stays alive between messages. Context is retained across turns via Claude Agent SDK's `resume` mechanism, with automatic backup/restore on cold start.
+
+```
+POST /api/sessions           →  Sandbox created, session enters idle
+POST /api/sessions/:id/messages  →  Agent resumes with full context  →  Events stream
+POST /api/sessions/:id/messages  →  Agent still remembers everything  →  Events stream
+DELETE /api/sessions/:id     →  Sandbox stopped, session closed
+```
+
+```bash
+# Create session
+curl -X POST $BASE_URL/api/sessions \
+  -H "Authorization: Bearer $API_KEY" \
+  -d '{"agent_id": "ag_01"}'
+
+# Send messages (context retained between calls)
+curl -N -X POST $BASE_URL/api/sessions/$SESSION_ID/messages \
+  -H "Authorization: Bearer $API_KEY" \
+  -d '{"prompt": "My name is Alice"}'
+
+curl -N -X POST $BASE_URL/api/sessions/$SESSION_ID/messages \
+  -H "Authorization: Bearer $API_KEY" \
+  -d '{"prompt": "What is my name?"}'  # → "Alice"
 ```
 
 ## Prerequisites
