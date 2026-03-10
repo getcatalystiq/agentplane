@@ -7,7 +7,7 @@ A multi-tenant platform for running [Claude Agent SDK](https://docs.anthropic.co
 ### Features
 
 - **Claude Agent SDK inside** — full agent with tool use, file editing, and bash running in an isolated sandbox
-- **Isolated sandboxes** — every run spins up a fresh Vercel Sandbox with its own filesystem, network policy, and resource limits
+- **Isolated sandboxes** — every run spins up a Vercel Sandbox from a pre-built SDK snapshot (~3s cold start) with its own filesystem, network policy, and resource limits
 - **Skills & plugins** — inject custom skills and marketplace plugins into agents before execution
 - **Scheduled runs** — configure agents to run on a schedule (hourly, daily, weekdays, weekly) with timezone-aware execution
 - **Multi-tenant** — row-level security, per-tenant API keys, budget controls, and rate limiting
@@ -309,6 +309,7 @@ Vercel Cron jobs are configured in `vercel.json`:
 - **Sandbox cleanup** — every 5 minutes (excludes session-owned sandboxes)
 - **Session cleanup** — every 5 minutes (idle timeout after 10 min, stuck session watchdog)
 - **Transcript cleanup** — daily at 3:00 AM UTC
+- **SDK snapshot refresh** — daily at 4:00 AM UTC (pre-builds sandbox snapshot with Claude Agent SDK installed)
 - **Budget reset** — daily at midnight UTC
 
 ## TypeScript SDK

@@ -18,7 +18,7 @@ A multi-tenant platform for running Claude Agent SDK agents in isolated Vercel S
 **Execution flow (one-shot runs):**
 1. Client POSTs to `/api/agents/:id/runs` (or `/api/runs`) with a prompt
 2. MCP config is built (Composio toolkits + custom MCP servers resolved, tokens refreshed in parallel)
-3. A Vercel Sandbox is created; `@anthropic-ai/claude-agent-sdk` installed; skill + plugin files injected
+3. A Vercel Sandbox is created from a pre-built SDK snapshot (falls back to fresh npm install if no snapshot); skill + plugin files injected
 4. Claude Agent SDK `query()` runs inside the sandbox
 5. Events stream back over NDJSON (`run_started`, `assistant`, `tool_use`, `tool_result`, `result`, `text_delta`)
 6. Ephemeral asset URLs (e.g. Composio/Firecrawl) are replaced with permanent Vercel Blob URLs
@@ -27,7 +27,7 @@ A multi-tenant platform for running Claude Agent SDK agents in isolated Vercel S
 
 **Execution flow (sessions):**
 1. Client POSTs to `/api/sessions` with `agent_id` (optional `prompt` for first message)
-2. Sandbox created and kept warm (no runner script yet); session enters `idle` state
+2. Sandbox created from SDK snapshot and kept warm (no runner script yet); session enters `idle` state
 3. Client POSTs to `/api/sessions/:id/messages` with `prompt`
 4. Per-message `runner-<runId>.mjs` written to sandbox, executes `query({ prompt, options: { resume: sessionId } })`
 5. Session transitions: `idle` → `active` (message in flight) → `idle` (message done)
@@ -78,6 +78,7 @@ src/
         cleanup-sandboxes/  # sandbox cleanup every 5 min (excludes session-owned runs)
         cleanup-sessions/ # session cleanup every 5 min (idle timeout + stuck session watchdog)
         cleanup-transcripts/  # daily transcript cleanup
+        refresh-snapshot/  # daily SDK snapshot refresh (Vercel Sandbox snapshot)
         scheduled-runs/   # per-minute scheduled agent run dispatcher + executor
       health/             # health check (no auth)
       keys/               # tenant-scoped API key management
@@ -105,7 +106,7 @@ src/
     validation.ts         # Zod request/response schemas
     auth.ts               # API key authentication + tenant RLS context
     admin-auth.ts         # admin JWT + cookie auth
-    sandbox.ts            # Vercel Sandbox creation + Claude Agent SDK runner + session sandbox + skill/plugin injection
+    sandbox.ts            # Vercel Sandbox creation + SDK snapshot management + Claude Agent SDK runner + session sandbox + skill/plugin injection
     run-executor.ts       # run preparation + execution abstraction (sandbox setup, transcript, billing)
     sessions.ts           # session lifecycle (create, transition, stop, idle/stuck queries)
     session-executor.ts   # session message execution (sandbox prepare/reconnect, message run, finalize)
@@ -215,11 +216,14 @@ All routes (except `/api/health`) require `Authorization: Bearer <api_key>`. Adm
 - Migration connection priority: `DATABASE_URL_DIRECT` → `DATABASE_URL_UNPOOLED` → `DATABASE_URL`
 - `DATABASE_URL_UNPOOLED` is auto-set when Neon is linked via the Vercel integration
 - Security headers set via `next.config.ts`: HSTS, X-Content-Type-Options, X-Frame-Options DENY, Referrer-Policy
-- Vercel functions config: `app/api/runs/**` has `supportsCancellation: true` for streaming cancellation
+- Vercel functions config: `app/api/runs/**` and `app/api/sessions/**` have `supportsCancellation: true` for streaming cancellation
 
 ## Sandbox & Runner
 
-- Sandboxes run `@anthropic-ai/claude-agent-sdk` (installed at runtime via npm)
+- Sandboxes are created from a pre-built SDK snapshot (with `@anthropic-ai/claude-agent-sdk` pre-installed); falls back to fresh npm install if no snapshot exists
+- SDK snapshots are refreshed daily at 4am UTC via `/api/cron/refresh-snapshot`; old snapshots (>24h) are cleaned up automatically
+- Snapshot ID is cached at the process level with TTL; `findSdkSnapshot()` looks up existing snapshots, `refreshSdkSnapshot()` creates new ones
+- Git repo agents skip snapshots (need fresh clone)
 - `ENABLE_TOOL_SEARCH=true` is set in the sandbox env to enable dynamic tool discovery for agents with many MCP tools
 - When MCP servers are present, `allowedTools` is suppressed so `mcp__*` tool names aren't blocked
 - Plugin skill files → `.claude/skills/<plugin-name>-<subfolder>/<filename>`; plugin command files → `.claude/commands/<plugin-name>-<filename>`
@@ -259,3 +263,6 @@ All routes (except `/api/health`) require `Authorization: Bearer <api_key>`. Adm
 - `cleanup-sandboxes` cron excludes session-owned runs (`session_id IS NULL` filter)
 - Vercel Blob uploads use `allowOverwrite: true` to handle race between runner transcript upload and `finalizeSessionMessage` (both write to the same blob path)
 - Session file backup also uses `allowOverwrite: true` since the same session file path is rewritten after each message
+- Session hot path parallelizes `buildMcpConfig` + `fetchPluginContent` + `reconnectSessionSandbox` via `Promise.all()`; on reconnect success, `updateMcpConfig()` injects fresh MCP tokens
+- Session message routes parallelize budget check + agent load via `Promise.all()`
+- Session sandbox skips `extendTimeout` if session has been idle < 5 minutes
