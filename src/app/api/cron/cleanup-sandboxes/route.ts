@@ -17,6 +17,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   verifyCronSecret(request);
 
   // Find stuck runs: created longer ago than their agent's max_runtime + buffer
+  // Exclude runs belonging to active sessions (those are managed by cleanup-sessions cron)
   const stuckRuns = await query(
     z.object({
       id: z.string(),
@@ -27,6 +28,7 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     `SELECT r.id, r.tenant_id, r.sandbox_id, r.started_at FROM runs r
      LEFT JOIN agents a ON a.id = r.agent_id
      WHERE r.status IN ('pending', 'running')
+       AND r.session_id IS NULL
        AND r.created_at < NOW() - INTERVAL '1 second' * (COALESCE(a.max_runtime_seconds, $1) + $2)`,
     [FALLBACK_THRESHOLD_SECONDS, BUFFER_SECONDS],
   );

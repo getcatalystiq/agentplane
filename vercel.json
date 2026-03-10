@@ -4,9 +4,11 @@
     { "path": "/api/cron/cleanup-transcripts", "schedule": "0 3 * * *" },
     { "path": "/api/cron/cleanup-sandboxes", "schedule": "*/5 * * * *" },
     { "path": "/api/cron/budget-reset", "schedule": "0 0 * * *" },
-    { "path": "/api/cron/scheduled-runs", "schedule": "* * * * *" }
+    { "path": "/api/cron/scheduled-runs", "schedule": "* * * * *" },
+    { "path": "/api/cron/cleanup-sessions", "schedule": "*/5 * * * *" }
   ],
   "functions": {
-    "app/api/runs/**": { "supportsCancellation": true }
+    "app/api/runs/**": { "supportsCancellation": true },
+    "app/api/sessions/**": { "supportsCancellation": true }
   }
 }
