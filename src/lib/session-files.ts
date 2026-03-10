@@ -38,6 +38,7 @@ export async function backupSessionFile(
       access: "private",
       contentType: "application/x-ndjson",
       addRandomSuffix: false,
+      allowOverwrite: true,
       multipart: true,
     });
 

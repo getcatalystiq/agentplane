@@ -12,6 +12,7 @@ export async function uploadTranscript(
     access: "public",
     contentType: "application/x-ndjson",
     addRandomSuffix: false,
+    allowOverwrite: true,
   });
 
   logger.info("Transcript uploaded", {
