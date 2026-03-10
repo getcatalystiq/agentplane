@@ -200,7 +200,7 @@ export async function getRun(runId: string, tenantId: TenantId) {
 
 export async function listRuns(
   tenantId: TenantId,
-  options: { agentId?: string; status?: RunStatus; limit: number; offset: number },
+  options: { agentId?: string; sessionId?: string; status?: RunStatus; limit: number; offset: number },
 ) {
   const conditions = ["tenant_id = $1"];
   const params: unknown[] = [tenantId];
@@ -209,6 +209,11 @@ export async function listRuns(
   if (options.agentId) {
     conditions.push(`agent_id = $${idx}`);
     params.push(options.agentId);
+    idx++;
+  }
+  if (options.sessionId) {
+    conditions.push(`session_id = $${idx}`);
+    params.push(options.sessionId);
     idx++;
   }
   if (options.status) {

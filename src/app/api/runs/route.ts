@@ -95,11 +95,13 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
     offset: url.searchParams.get("offset"),
   });
   const agentId = url.searchParams.get("agent_id") ?? undefined;
+  const sessionId = url.searchParams.get("session_id") ?? undefined;
   const statusParam = url.searchParams.get("status");
   const status = statusParam ? RunStatusSchema.parse(statusParam) : undefined;
 
   const runs = await listRuns(auth.tenantId, {
     agentId,
+    sessionId,
     status,
     ...pagination,
   });

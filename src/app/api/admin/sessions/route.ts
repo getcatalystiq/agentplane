@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { query } from "@/db";
-import { PaginationSchema, SessionStatusSchema } from "@/lib/validation";
-import { withErrorHandler } from "@/lib/api";
+import { query, queryOne } from "@/db";
+import { PaginationSchema, SessionStatusSchema, AgentRowInternal } from "@/lib/validation";
+import { withErrorHandler, jsonResponse } from "@/lib/api";
+import { createSession, transitionSessionStatus } from "@/lib/sessions";
+import { prepareSessionSandbox, executeSessionMessage, finalizeSessionMessage } from "@/lib/session-executor";
+import { createNdjsonStream, ndjsonHeaders } from "@/lib/streaming";
+import { NotFoundError } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 import { z } from "zod";
+import type { AgentId, TenantId } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 const SessionWithContext = z.object({
   id: z.string(),
@@ -68,4 +75,111 @@ export const GET = withErrorHandler(async (request: NextRequest) => {
   );
 
   return NextResponse.json({ data: sessions, limit, offset });
+});
+
+const AdminCreateSessionSchema = z.object({
+  agent_id: z.string().min(1),
+  prompt: z.string().min(1).max(100_000).optional(),
+});
+
+export const POST = withErrorHandler(async (request: NextRequest) => {
+  const body = await request.json();
+  const input = AdminCreateSessionSchema.parse(body);
+
+  // Look up agent (no RLS) to get tenant_id
+  const agentRow = await queryOne(
+    AgentRowInternal,
+    "SELECT * FROM agents WHERE id = $1",
+    [input.agent_id],
+  );
+  if (!agentRow) throw new NotFoundError("Agent not found");
+  const agent = agentRow;
+
+  const tenantId = agent.tenant_id as TenantId;
+  const { session } = await createSession(tenantId, input.agent_id as AgentId);
+
+  const sandbox = await prepareSessionSandbox(
+    {
+      sessionId: session.id,
+      tenantId,
+      agent,
+      prompt: input.prompt ?? "",
+      platformApiUrl: new URL(request.url).origin,
+      effectiveBudget: agent.max_budget_usd,
+      effectiveMaxTurns: agent.max_turns,
+    },
+    session,
+  );
+
+  if (!input.prompt) {
+    await transitionSessionStatus(session.id, tenantId, "creating", "idle", {
+      sandbox_id: sandbox.id,
+      idle_since: new Date().toISOString(),
+    });
+
+    return jsonResponse({
+      id: session.id,
+      agent_id: session.agent_id,
+      tenant_id: tenantId,
+      status: "idle",
+      message_count: 0,
+      created_at: session.created_at,
+    }, 201);
+  }
+
+  const { runId, logIterator, transcriptChunks, sdkSessionIdRef } =
+    await executeSessionMessage(
+      {
+        sessionId: session.id,
+        tenantId,
+        agent,
+        prompt: input.prompt,
+        platformApiUrl: new URL(request.url).origin,
+        effectiveBudget: agent.max_budget_usd,
+        effectiveMaxTurns: agent.max_turns,
+      },
+      sandbox,
+      { ...session, sandbox_id: sandbox.id },
+    );
+
+  let detached = false;
+
+  async function* streamWithFinalize() {
+    yield JSON.stringify({
+      type: "session_created",
+      session_id: session.id,
+      agent_id: session.agent_id,
+      timestamp: new Date().toISOString(),
+    });
+
+    for await (const line of logIterator) {
+      yield line;
+    }
+
+    if (!detached) {
+      await finalizeSessionMessage(
+        runId,
+        tenantId,
+        session.id,
+        transcriptChunks,
+        agent.max_budget_usd,
+        sandbox,
+        sdkSessionIdRef.value,
+      );
+    }
+  }
+
+  const stream = createNdjsonStream({
+    runId,
+    logIterator: streamWithFinalize(),
+    onDetach: () => {
+      detached = true;
+      logger.info("Admin session stream detached", {
+        session_id: session.id,
+        run_id: runId,
+      });
+    },
+  });
+
+  return new Response(stream, { status: 200, headers: ndjsonHeaders() });
 });

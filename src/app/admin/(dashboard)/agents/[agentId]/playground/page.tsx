@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState, useRef, useEffect } from "react";
+import { use, useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -55,7 +55,18 @@ function CollapsibleJson({ data, maxHeight = "12rem" }: { data: unknown; maxHeig
 
 function renderEvent(event: PlaygroundEvent, idx: number) {
   if (event.type === "heartbeat") return null;
-  if (event.type === "text_delta") return null; // rendered separately as streaming text
+  if (event.type === "text_delta") return null;
+  if (event.type === "session_created") return null;
+  if (event.type === "session_info") return null;
+
+  if (event.type === "user_message") {
+    return (
+      <div key={idx} className="border-t border-border pt-3 mt-1">
+        <span className="text-xs font-semibold text-emerald-400 uppercase">You</span>
+        <p className="text-sm text-foreground mt-1 whitespace-pre-wrap">{String(event.text)}</p>
+      </div>
+    );
+  }
 
   if (event.type === "assistant") {
     const content = event.message as { content?: Array<{ type: string; text?: string; name?: string; id?: string; input?: unknown }> } | undefined;
@@ -208,9 +219,11 @@ export default function PlaygroundPage({ params }: { params: Promise<{ agentId: 
   const [running, setRunning] = useState(false);
   const [polling, setPolling] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const runIdRef = useRef<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -226,7 +239,6 @@ export default function PlaygroundPage({ params }: { params: Promise<{ agentId: 
       });
 
       if (!res.ok) {
-        // Fallback: if stream reconnect fails, poll for final result
         await pollForFinalResult(runId);
         return;
       }
@@ -251,7 +263,6 @@ export default function PlaygroundPage({ params }: { params: Promise<{ agentId: 
             if (event.type === "heartbeat") continue;
 
             if (event.type === "stream_detached") {
-              // Server detached again — reconnect with new offset
               const newOffset = typeof event.offset === "number" ? event.offset : eventOffset;
               reconnectToStream(runId, newOffset);
               return;
@@ -270,7 +281,6 @@ export default function PlaygroundPage({ params }: { params: Promise<{ agentId: 
       }
     } catch (err) {
       if ((err as Error)?.name === "AbortError") return;
-      // Connection lost — try polling as fallback
       await pollForFinalResult(runId);
       return;
     } finally {
@@ -352,42 +362,15 @@ export default function PlaygroundPage({ params }: { params: Promise<{ agentId: 
     }
   }
 
-  async function handleRun() {
-    if (!prompt.trim() || running) return;
-
-    setRunning(true);
-    setEvents([]);
-    setStreamingText("");
-    setError(null);
-    setPolling(false);
-
-    const abort = new AbortController();
-    abortRef.current = abort;
-
-    let runId: string | null = null;
+  async function consumeStream(res: Response) {
+    const reader = res.body!.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
     let handedOffToReconnect = false;
-    // Track transcript event count (events stored in sandbox transcript.ndjson)
-    // text_delta is not stored in transcript, everything else is
     let transcriptEventCount = 0;
+    let runId: string | null = null;
 
     try {
-      const res = await fetch(`/api/admin/agents/${agentId}/runs`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
-        signal: abort.signal,
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setError(data?.error ?? `HTTP ${res.status}`);
-        return;
-      }
-
-      const reader = res.body!.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
@@ -402,6 +385,11 @@ export default function PlaygroundPage({ params }: { params: Promise<{ agentId: 
           try {
             const event = JSON.parse(trimmed) as PlaygroundEvent;
 
+            // Capture session ID from session_created event
+            if (event.type === "session_created" && event.session_id) {
+              setSessionId(event.session_id as string);
+            }
+
             if (event.type === "run_started" && event.run_id) {
               runId = event.run_id as string;
               runIdRef.current = runId;
@@ -412,7 +400,6 @@ export default function PlaygroundPage({ params }: { params: Promise<{ agentId: 
             } else if (event.type === "stream_detached") {
               setStreamingText("");
               setEvents((prev) => [...prev, event]);
-              // Reconnect to sandbox stream for live updates
               if (runId) {
                 handedOffToReconnect = true;
                 reconnectToStream(runId, transcriptEventCount);
@@ -421,7 +408,6 @@ export default function PlaygroundPage({ params }: { params: Promise<{ agentId: 
             } else {
               if (event.type === "assistant") setStreamingText("");
               setEvents((prev) => [...prev, event]);
-              // Count events that go into the transcript (not text_delta, not heartbeat)
               if (event.type !== "heartbeat") {
                 transcriptEventCount++;
               }
@@ -431,10 +417,6 @@ export default function PlaygroundPage({ params }: { params: Promise<{ agentId: 
           }
         }
       }
-    } catch (err) {
-      if ((err as Error)?.name !== "AbortError") {
-        setError(err instanceof Error ? err.message : "Unknown error");
-      }
     } finally {
       if (!handedOffToReconnect) {
         setRunning(false);
@@ -442,6 +424,81 @@ export default function PlaygroundPage({ params }: { params: Promise<{ agentId: 
         runIdRef.current = null;
       }
     }
+  }
+
+  const handleSend = useCallback(async () => {
+    if (!prompt.trim() || running) return;
+
+    const messageText = prompt.trim();
+    setPrompt("");
+    setRunning(true);
+    setStreamingText("");
+    setError(null);
+    setPolling(false);
+
+    // Show user message in the event stream
+    setEvents((prev) => [...prev, { type: "user_message", text: messageText }]);
+
+    const abort = new AbortController();
+    abortRef.current = abort;
+
+    try {
+      let res: Response;
+
+      if (sessionId) {
+        // Follow-up message to existing session
+        res = await fetch(`/api/admin/sessions/${sessionId}/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: messageText }),
+          signal: abort.signal,
+        });
+      } else {
+        // First message — create session with prompt
+        res = await fetch("/api/admin/sessions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ agent_id: agentId, prompt: messageText }),
+          signal: abort.signal,
+        });
+      }
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const msg = data?.error?.message ?? data?.error ?? `HTTP ${res.status}`;
+        setError(typeof msg === "string" ? msg : JSON.stringify(msg));
+        setRunning(false);
+        return;
+      }
+
+      await consumeStream(res);
+    } catch (err) {
+      if ((err as Error)?.name !== "AbortError") {
+        setError(err instanceof Error ? err.message : "Unknown error");
+      }
+      setRunning(false);
+      abortRef.current = null;
+      runIdRef.current = null;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prompt, running, sessionId, agentId]);
+
+  function handleNewChat() {
+    abortRef.current?.abort();
+    // Stop the current session in the background
+    if (sessionId) {
+      fetch(`/api/admin/sessions/${sessionId}`, { method: "DELETE" }).catch(() => {});
+    }
+    setSessionId(null);
+    setEvents([]);
+    setStreamingText("");
+    setRunning(false);
+    setPolling(false);
+    setError(null);
+    setPrompt("");
+    runIdRef.current = null;
+    abortRef.current = null;
+    textareaRef.current?.focus();
   }
 
   async function handleStop() {
@@ -453,44 +510,31 @@ export default function PlaygroundPage({ params }: { params: Promise<{ agentId: 
     }
   }
 
+  const hasContent = events.length > 0 || running;
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
+    <div className="flex flex-col h-[calc(100vh-6rem)]">
+      <div className="flex items-center gap-3 mb-4">
         <Link href={`/admin/agents/${agentId}`} className="text-muted-foreground hover:text-foreground text-sm">
           &larr; Agent
         </Link>
         <span className="text-muted-foreground">/</span>
         <h1 className="text-xl font-semibold">Playground</h1>
-      </div>
-
-      <div className="space-y-2">
-        <Textarea
-          placeholder="Enter your prompt…"
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          rows={5}
-          disabled={running}
-          className="font-mono text-sm resize-none"
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleRun();
-          }}
-        />
-        <div className="flex items-center gap-2">
-          <Button onClick={handleRun} disabled={running || !prompt.trim()} size="sm">
-            {running ? "Running…" : "Run"}
+        {sessionId && (
+          <span className="text-xs text-muted-foreground font-mono ml-auto">
+            Session: {sessionId.slice(0, 12)}…
+          </span>
+        )}
+        {(sessionId || events.length > 0) && (
+          <Button onClick={handleNewChat} variant="outline" size="sm" disabled={running}>
+            New Chat
           </Button>
-          {running && (
-            <Button onClick={handleStop} variant="outline" size="sm">
-              Stop
-            </Button>
-          )}
-          <span className="text-xs text-muted-foreground ml-1">⌘+Enter to run</span>
-        </div>
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        )}
       </div>
 
-      {(running || events.length > 0) && (
-        <div ref={scrollRef} className="rounded-lg border border-border bg-muted/20 p-4 space-y-4 min-h-32 max-h-[60vh] overflow-y-auto">
+      {/* Scrollable output area */}
+      {hasContent && (
+        <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto rounded-lg border border-border bg-muted/20 p-4 space-y-4 mb-4">
           {events.map((ev, i) => renderEvent(ev, i))}
           {streamingText && (
             <div className="space-y-1">
@@ -506,6 +550,34 @@ export default function PlaygroundPage({ params }: { params: Promise<{ agentId: 
           )}
         </div>
       )}
+
+      {/* Input area at the bottom */}
+      <div className="space-y-2 shrink-0">
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <Textarea
+          ref={textareaRef}
+          placeholder={sessionId ? "Send a follow-up message…" : "Enter your prompt…"}
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          rows={hasContent ? 2 : 5}
+          disabled={running}
+          className="font-mono text-sm resize-none"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleSend();
+          }}
+        />
+        <div className="flex items-center gap-2">
+          <Button onClick={handleSend} disabled={running || !prompt.trim()} size="sm">
+            {running ? "Running…" : sessionId ? "Send" : "Run"}
+          </Button>
+          {running && (
+            <Button onClick={handleStop} variant="outline" size="sm">
+              Stop
+            </Button>
+          )}
+          <span className="text-xs text-muted-foreground ml-1">⌘+Enter to send</span>
+        </div>
+      </div>
     </div>
   );
 }
