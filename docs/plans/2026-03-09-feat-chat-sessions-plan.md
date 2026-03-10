@@ -976,7 +976,7 @@ Test: create, get, list, sendMessage, stop — following patterns from `sdk/test
 - [x] `GET /api/sessions?agent_id=X` lists sessions filtered by agent
 - [x] `DELETE /api/sessions/:id` stops the session and destroys sandbox
 - [x] `POST /api/runs` continues to work as one-shot (backward compatible)
-- [ ] `GET /api/runs?session_id=X` returns runs for a session
+- [x] `GET /api/runs?session_id=X` returns runs for a session
 - [x] Each session message creates a `run` record with `triggered_by: "chat"` and `session_id`
 - [x] SDK `resume: sessionId` is used for 2nd+ messages — full conversation context preserved
 - [x] Session file is backed up to Vercel Blob after each message
@@ -984,7 +984,7 @@ Test: create, get, list, sendMessage, stop — following patterns from `sdk/test
 - [x] Concurrent messages to same session return 409 Conflict
 - [x] Max 5 concurrent sessions per tenant enforced atomically
 - [x] Idle sessions (10 min) are cleaned up by cron — sandbox stopped, session file backed up
-- [ ] Admin playground transforms to chat interface with session support
+- [x] Admin playground transforms to chat interface with session support
 - [x] Admin can list, view, and stop sessions
 - [x] SDK `client.sessions.create()`, `.sendMessage()`, `.get()`, `.list()`, `.stop()` all work
 - [x] CLAUDE.md updated with session architecture
