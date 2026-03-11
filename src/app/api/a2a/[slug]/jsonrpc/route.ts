@@ -14,6 +14,7 @@ import { logger } from "@/lib/logger";
 import { getHttpClient } from "@/db";
 import { z } from "zod";
 import {
+  a2aHeaders,
   buildAgentCard,
   getCachedAgentCard,
   setCachedAgentCard,
@@ -33,14 +34,9 @@ const MAX_BODY_SIZE = 1_048_576; // 1MB
 const TenantForBudgetRow = z.object({
   id: z.string(),
   name: z.string(),
-  status: z.enum(["active", "suspended"]),
   monthly_budget_usd: z.coerce.number(),
   current_month_spend: z.coerce.number(),
 });
-
-function a2aHeaders(requestId: string, extra?: Record<string, string>): Record<string, string> {
-  return { "A2A-Version": "1.0", "A2A-Request-Id": requestId, ...extra };
-}
 
 export const POST = withErrorHandler(async (
   request: NextRequest,
@@ -111,7 +107,7 @@ export const POST = withErrorHandler(async (
   // Resolve tenant info for budget enforcement
   const sql = getHttpClient();
   const tenantRows = await sql`
-    SELECT id, name, status, monthly_budget_usd, current_month_spend
+    SELECT id, name, monthly_budget_usd, current_month_spend
     FROM tenants WHERE slug = ${slug} AND status = 'active'
   `;
   if (tenantRows.length === 0) {
@@ -122,13 +118,8 @@ export const POST = withErrorHandler(async (
   }
   const tenant = TenantForBudgetRow.parse(tenantRows[0]);
 
-  // Enforce budget — suspended or over-budget tenants cannot trigger A2A runs
-  if (tenant.status === "suspended") {
-    return NextResponse.json(
-      { jsonrpc: "2.0", error: { code: -32001, message: "Tenant is suspended" }, id: body.id ?? null },
-      { status: 200, headers: a2aHeaders(requestId) },
-    );
-  }
+  // Best-effort budget gate — the authoritative check is inside createRun() (transactional).
+  // This early check avoids unnecessary work for clearly over-budget tenants.
   if (tenant.current_month_spend >= tenant.monthly_budget_usd) {
     return NextResponse.json(
       { jsonrpc: "2.0", error: { code: -32001, message: "Monthly budget exceeded" }, id: body.id ?? null },
@@ -142,7 +133,7 @@ export const POST = withErrorHandler(async (
 
   let agentCard = getCachedAgentCard(slug);
   if (!agentCard) {
-    agentCard = await buildAgentCard(slug, tenant.name, baseUrl);
+    agentCard = await buildAgentCard(tenant.id, slug, tenant.name, baseUrl);
     if (!agentCard) {
       return NextResponse.json(
         { jsonrpc: "2.0", error: { code: -32001, message: "No A2A-enabled agents found" }, id: body.id ?? null },
@@ -204,6 +195,7 @@ export const POST = withErrorHandler(async (
             const data = JSON.stringify(event);
             controller.enqueue(encoder.encode(`data: ${data}\n\n`));
           }
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
         } catch (err) {
           logger.error("A2A streaming error", {
             slug,

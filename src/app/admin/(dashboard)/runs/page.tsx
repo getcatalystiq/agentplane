@@ -2,6 +2,7 @@ import Link from "next/link";
 import { PaginationBar, parsePaginationParams } from "@/components/ui/pagination-bar";
 import { RunStatusBadge } from "@/components/ui/run-status-badge";
 import { RunSourceBadge } from "@/components/ui/run-source-badge";
+import { SourceFilter } from "./source-filter";
 import { AdminTable, AdminTableHead, AdminTableRow, Th, EmptyRow } from "@/components/ui/admin-table";
 import { LocalDate } from "@/components/local-date";
 import { query, queryOne } from "@/db";
@@ -30,13 +31,22 @@ const RunWithContext = z.object({
 
 export const dynamic = "force-dynamic";
 
+const VALID_SOURCES = ["api", "schedule", "playground", "chat", "a2a"] as const;
+
 export default async function RunsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; pageSize?: string }>;
+  searchParams: Promise<{ page?: string; pageSize?: string; source?: string }>;
 }) {
-  const { page: pageParam, pageSize: pageSizeParam } = await searchParams;
+  const { page: pageParam, pageSize: pageSizeParam, source: sourceParam } = await searchParams;
   const { page, pageSize, offset } = parsePaginationParams(pageParam, pageSizeParam);
+  const sourceFilter = VALID_SOURCES.includes(sourceParam as typeof VALID_SOURCES[number])
+    ? (sourceParam as typeof VALID_SOURCES[number])
+    : null;
+
+  const sourceWhere = sourceFilter ? `WHERE r.triggered_by = $3` : "";
+  const sourceWhereCount = sourceFilter ? `WHERE r.triggered_by = $1` : "";
+  const params = sourceFilter ? [pageSize, offset, sourceFilter] : [pageSize, offset];
 
   const [runs, countResult] = await Promise.all([
     query(
@@ -48,16 +58,18 @@ export default async function RunsPage({
        FROM runs r
        JOIN agents a ON a.id = r.agent_id
        JOIN tenants t ON t.id = r.tenant_id
+       ${sourceWhere}
        ORDER BY r.created_at DESC
        LIMIT $1 OFFSET $2`,
-      [pageSize, offset],
+      params,
     ),
     queryOne(
       z.object({ total: z.number() }),
       `SELECT COUNT(*)::int AS total FROM runs r
        JOIN agents a ON a.id = r.agent_id
-       JOIN tenants t ON t.id = r.tenant_id`,
-      [],
+       JOIN tenants t ON t.id = r.tenant_id
+       ${sourceWhereCount}`,
+      sourceFilter ? [sourceFilter] : [],
     ),
   ]);
 
@@ -65,13 +77,16 @@ export default async function RunsPage({
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold mb-6">Runs</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-semibold">Runs</h1>
+        <SourceFilter current={sourceFilter} />
+      </div>
       <AdminTable className="overflow-x-auto" footer={
         <PaginationBar
           page={page}
           pageSize={pageSize}
           total={total}
-          buildHref={(p, ps) => `/admin/runs?page=${p}&pageSize=${ps}`}
+          buildHref={(p, ps) => `/admin/runs?page=${p}&pageSize=${ps}${sourceFilter ? `&source=${sourceFilter}` : ""}`}
         />
       }>
         <AdminTableHead>

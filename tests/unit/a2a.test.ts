@@ -3,6 +3,9 @@ import {
   runStatusToA2a,
   a2aToRunStatus,
   runToA2aTask,
+  a2aHeaders,
+  getCachedAgentCard,
+  setCachedAgentCard,
   validateA2aMessage,
   sanitizeRequestId,
 } from "@/lib/a2a";
@@ -69,9 +72,7 @@ describe("runToA2aTask", () => {
   const baseRun = {
     id: "a0b1c2d3-e4f5-4678-9abc-def012345678",
     status: "completed" as const,
-    prompt: "test prompt",
     result_summary: "Task completed successfully",
-    transcript_blob_url: "https://blob.example.com/transcript",
     duration_ms: 5000,
     created_at: "2026-01-01T00:00:00Z",
     completed_at: "2026-01-01T00:00:05Z",
@@ -116,6 +117,49 @@ describe("runToA2aTask", () => {
   it("uses contextId = taskId (Phase 1)", () => {
     const task = runToA2aTask(baseRun);
     expect(task.contextId).toBe(task.id);
+  });
+});
+
+describe("a2aHeaders", () => {
+  it("includes version and request ID", () => {
+    const headers = a2aHeaders("req-123");
+    expect(headers["A2A-Version"]).toBe("1.0");
+    expect(headers["A2A-Request-Id"]).toBe("req-123");
+  });
+
+  it("merges extra headers", () => {
+    const headers = a2aHeaders("req-456", { "Cache-Control": "no-cache" });
+    expect(headers["A2A-Version"]).toBe("1.0");
+    expect(headers["A2A-Request-Id"]).toBe("req-456");
+    expect(headers["Cache-Control"]).toBe("no-cache");
+  });
+
+  it("extra headers override defaults", () => {
+    const headers = a2aHeaders("req-789", { "A2A-Version": "2.0" });
+    expect(headers["A2A-Version"]).toBe("2.0");
+  });
+});
+
+describe("agentCardCache", () => {
+  it("returns null for missing key", () => {
+    expect(getCachedAgentCard("nonexistent-slug")).toBeNull();
+  });
+
+  it("stores and retrieves agent card", () => {
+    const card = { name: "Test" } as Parameters<typeof setCachedAgentCard>[1];
+    setCachedAgentCard("test-slug", card);
+    expect(getCachedAgentCard("test-slug")).toBe(card);
+  });
+
+  it("evicts oldest entry when cache is full", () => {
+    // Fill cache with 100 entries
+    for (let i = 0; i < 100; i++) {
+      setCachedAgentCard(`evict-slug-${i}`, { name: `Agent ${i}` } as Parameters<typeof setCachedAgentCard>[1]);
+    }
+    // Adding one more should evict the oldest (evict-slug-0)
+    setCachedAgentCard("evict-slug-new", { name: "New" } as Parameters<typeof setCachedAgentCard>[1]);
+    expect(getCachedAgentCard("evict-slug-0")).toBeNull();
+    expect(getCachedAgentCard("evict-slug-new")).not.toBeNull();
   });
 });
 

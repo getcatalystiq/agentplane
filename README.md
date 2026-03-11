@@ -12,7 +12,8 @@ A multi-tenant platform for running [Claude Agent SDK](https://docs.anthropic.co
 - **Scheduled runs** — configure agents to run on a schedule (hourly, daily, weekdays, weekly) with timezone-aware execution
 - **Multi-tenant** — row-level security, per-tenant API keys, budget controls, and rate limiting
 - **MCP connectors** — connect agents to external tools via Composio (GitHub, Slack, Firecrawl) or custom OAuth 2.1 MCP servers
-- **Full observability** — every run stores a transcript, token usage, cost, duration, and trigger source (API/schedule/playground)
+- **A2A protocol** — expose agents to external A2A-compliant clients (LangGraph, CrewAI, Semantic Kernel, etc.) via Agent Cards and JSON-RPC; streaming SSE, idempotency, budget clamping
+- **Full observability** — every run stores a transcript, token usage, cost, duration, and trigger source (API/schedule/playground/A2A)
 - **Playground** — test agents interactively from the admin dashboard with real-time event streaming
 - **Multi-turn sessions** — persistent conversations with context retention across messages; sandbox kept alive between turns; automatic backup/restore on cold start
 - **Configurable runtime** — set max runtime per agent (60–3600 seconds)
@@ -60,6 +61,38 @@ curl -N -X POST $BASE_URL/api/sessions/$SESSION_ID/messages \
 curl -N -X POST $BASE_URL/api/sessions/$SESSION_ID/messages \
   -H "Authorization: Bearer $API_KEY" \
   -d '{"prompt": "What is my name?"}'  # → "Alice"
+```
+
+### A2A Protocol (Agent-to-Agent)
+
+Expose agents to external A2A-compliant clients. Any agent with `a2a_enabled: true` appears in the tenant's Agent Card and can be invoked via JSON-RPC.
+
+```
+GET  /api/a2a/{slug}/.well-known/agent-card.json  →  Agent Card (public, rate-limited)
+POST /api/a2a/{slug}/jsonrpc                       →  JSON-RPC (message/send, message/stream, tasks/get, tasks/cancel)
+```
+
+```bash
+# Discover agents
+curl $BASE_URL/api/a2a/my-org/.well-known/agent-card.json
+
+# Invoke an agent via JSON-RPC
+curl -X POST $BASE_URL/api/a2a/my-org/jsonrpc \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "message/send",
+    "id": "1",
+    "params": {
+      "message": {
+        "role": "user",
+        "kind": "message",
+        "messageId": "msg-1",
+        "parts": [{"kind": "text", "text": "Review this PR"}]
+      }
+    }
+  }'
 ```
 
 ## Prerequisites
@@ -224,6 +257,7 @@ All API routes (except `/api/health`) require `Authorization: Bearer <api_key>`.
 
 - **Tenant routes** — use API keys created via `create-tenant` or `create-api-key` scripts.
 - **Admin routes** (`/api/admin/*`) — use the `ADMIN_API_KEY` or log in via `/admin` for JWT cookie auth.
+- **A2A routes** — Agent Card endpoint is public (rate-limited by IP). JSON-RPC endpoint uses tenant API keys with single-query slug+key auth.
 
 API keys are hashed with SHA-256 and optionally encrypted at rest with AES-256-GCM.
 
@@ -261,6 +295,13 @@ API keys are hashed with SHA-256 and optionally encrypted at rest with AES-256-G
 | `POST` | `/api/keys` | Create API key |
 | `DELETE` | `/api/keys/:id` | Revoke API key |
 | `GET` | `/api/mcp-servers` | List registered MCP servers |
+
+### A2A Routes
+
+| Method | Route | Description |
+|---|---|---|
+| `GET` | `/api/a2a/:slug/.well-known/agent-card.json` | Agent Card discovery (public, rate-limited) |
+| `POST` | `/api/a2a/:slug/jsonrpc` | JSON-RPC endpoint (message/send, message/stream, tasks/get, tasks/cancel) |
 
 ### Admin Routes
 

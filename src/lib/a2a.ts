@@ -17,8 +17,9 @@ import {
   A2AError,
 } from "@a2a-js/sdk/server";
 import { getHttpClient } from "@/db";
-import { createRun, transitionRunStatus } from "@/lib/runs";
+import { createRun, getRun, transitionRunStatus } from "@/lib/runs";
 import { prepareRunExecution, finalizeRun } from "@/lib/run-executor";
+import { reconnectSandbox } from "@/lib/sandbox";
 import { logger } from "@/lib/logger";
 import type { RunStatus, TenantId, AgentId, RunId } from "@/lib/types";
 import type { AgentInternal } from "@/lib/validation";
@@ -52,10 +53,17 @@ export function a2aToRunStatus(state: TaskState): RunStatus | null {
   }
 }
 
-// --- Agent Card Cache (process-level, 60s TTL) ---
+// --- A2A Response Headers ---
+
+export function a2aHeaders(requestId: string, extra?: Record<string, string>): Record<string, string> {
+  return { "A2A-Version": "1.0", "A2A-Request-Id": requestId, ...extra };
+}
+
+// --- Agent Card Cache (process-level, 60s TTL, max 100 entries) ---
 
 const agentCardCache = new Map<string, { card: AgentCard; expiresAt: number }>();
 const AGENT_CARD_TTL_MS = 60_000;
+const AGENT_CARD_CACHE_MAX = 100;
 
 export function getCachedAgentCard(cacheKey: string): AgentCard | null {
   const cached = agentCardCache.get(cacheKey);
@@ -65,6 +73,11 @@ export function getCachedAgentCard(cacheKey: string): AgentCard | null {
 }
 
 export function setCachedAgentCard(cacheKey: string, card: AgentCard): void {
+  if (agentCardCache.size >= AGENT_CARD_CACHE_MAX) {
+    // Evict oldest entry (first inserted)
+    const firstKey = agentCardCache.keys().next().value;
+    if (firstKey !== undefined) agentCardCache.delete(firstKey);
+  }
   agentCardCache.set(cacheKey, { card, expiresAt: Date.now() + AGENT_CARD_TTL_MS });
 }
 
@@ -78,20 +91,21 @@ const A2aAgentRow = z.object({
 });
 
 export async function buildAgentCard(
+  tenantId: string,
   tenantSlug: string,
   tenantName: string,
   baseUrl: string,
 ): Promise<AgentCard | null> {
   const sql = getHttpClient();
 
-  // Query a2a_enabled agents for this tenant (via slug lookup)
+  // Query a2a_enabled agents for this tenant (by ID — caller already resolved slug)
   const rows = await sql`
     SELECT a.id, a.name, a.description, a.max_runtime_seconds
     FROM agents a
-    JOIN tenants t ON a.tenant_id = t.id
-    WHERE t.slug = ${tenantSlug}
+    WHERE a.tenant_id = ${tenantId}
       AND a.a2a_enabled = true
     ORDER BY a.name
+    LIMIT 50
   `;
 
   const agents = rows.map((row: unknown) => A2aAgentRow.parse(row));
@@ -141,9 +155,7 @@ export async function buildAgentCard(
 const RunForTaskRow = z.object({
   id: z.string(),
   status: z.enum(["pending", "running", "completed", "failed", "cancelled", "timed_out"]),
-  prompt: z.string(),
   result_summary: z.string().nullable(),
-  transcript_blob_url: z.string().nullable(),
   duration_ms: z.coerce.number(),
   created_at: z.coerce.string(),
   completed_at: z.coerce.string().nullable(),
@@ -197,7 +209,7 @@ export class RunBackedTaskStore implements TaskStore {
     try {
       const sql = getHttpClient();
       const rows = await sql`
-        SELECT id, status, prompt, result_summary, transcript_blob_url, duration_ms, created_at, completed_at
+        SELECT id, status, result_summary, duration_ms, created_at, completed_at
         FROM runs
         WHERE id = ${taskId}
           AND tenant_id = ${this.tenantId}
@@ -422,10 +434,37 @@ export class SandboxAgentExecutor implements AgentExecutor {
         throw A2AError.taskNotFound(taskId);
       }
 
+      // Load the run to check current status and get sandbox_id
+      const run = await getRun(taskId, this.deps.tenantId);
+
+      if (run.status !== "running" && run.status !== "pending") {
+        // Already in terminal state — nothing to cancel
+        eventBus.publish({
+          kind: "status-update",
+          taskId,
+          contextId: taskId,
+          status: { state: "canceled", timestamp: new Date().toISOString() },
+          final: true,
+        } as TaskStatusUpdateEvent);
+        return;
+      }
+
+      // Stop the sandbox if running (mirrors /api/runs/:id/cancel)
+      if (run.sandbox_id) {
+        const sandbox = await reconnectSandbox(run.sandbox_id);
+        if (sandbox) {
+          await sandbox.stop();
+          logger.info("Sandbox stopped for A2A cancellation", {
+            task_id: taskId,
+            sandbox_id: run.sandbox_id,
+          });
+        }
+      }
+
       await transitionRunStatus(
         taskId as RunId,
         this.deps.tenantId,
-        "running",
+        run.status,
         "cancelled",
         { completed_at: new Date().toISOString() },
       );
@@ -472,13 +511,13 @@ export function validateA2aMessage(message: Message): string | null {
     return "Message role must be 'user'";
   }
   if (message.referenceTaskIds) {
+    if (message.referenceTaskIds.length > 10) {
+      return "Maximum 10 referenceTaskIds allowed";
+    }
     for (const refId of message.referenceTaskIds) {
       if (!UUID_V4_REGEX.test(refId)) {
         return `Invalid referenceTaskId format: ${refId}`;
       }
-    }
-    if (message.referenceTaskIds.length > 10) {
-      return "Maximum 10 referenceTaskIds allowed";
     }
   }
   if (message.contextId) {

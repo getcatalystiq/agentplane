@@ -4,6 +4,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { RateLimitError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 import {
+  a2aHeaders,
   buildAgentCard,
   getCachedAgentCard,
   setCachedAgentCard,
@@ -42,11 +43,7 @@ export const GET = withErrorHandler(async (
   if (cached) {
     return NextResponse.json(cached, {
       status: 200,
-      headers: {
-        "Cache-Control": "public, max-age=300",
-        "A2A-Version": "1.0",
-        "A2A-Request-Id": requestId,
-      },
+      headers: a2aHeaders(requestId, { "Cache-Control": "public, max-age=300" }),
     });
   }
 
@@ -62,11 +59,7 @@ export const GET = withErrorHandler(async (
       { error: { code: "not_found", message: "Not found" } },
       {
         status: 404,
-        headers: {
-          "Cache-Control": "public, max-age=300",
-          "A2A-Version": "1.0",
-          "A2A-Request-Id": requestId,
-        },
+        headers: a2aHeaders(requestId, { "Cache-Control": "public, max-age=300" }),
       },
     );
   }
@@ -76,7 +69,7 @@ export const GET = withErrorHandler(async (
   // Use trusted baseUrl from env (not request headers — prevents cache poisoning)
   const baseUrl = getCallbackBaseUrl();
 
-  const card = await buildAgentCard(slug, tenant.name, baseUrl);
+  const card = await buildAgentCard(tenant.id, slug, tenant.name, baseUrl);
 
   if (!card) {
     // Uniform 404 for tenants with zero a2a_enabled agents
@@ -84,11 +77,7 @@ export const GET = withErrorHandler(async (
       { error: { code: "not_found", message: "Not found" } },
       {
         status: 404,
-        headers: {
-          "Cache-Control": "public, max-age=300",
-          "A2A-Version": "1.0",
-          "A2A-Request-Id": requestId,
-        },
+        headers: a2aHeaders(requestId, { "Cache-Control": "public, max-age=300" }),
       },
     );
   }
@@ -98,10 +87,6 @@ export const GET = withErrorHandler(async (
 
   return NextResponse.json(card, {
     status: 200,
-    headers: {
-      "Cache-Control": "public, max-age=300",
-      "A2A-Version": "1.0",
-      "A2A-Request-Id": requestId,
-    },
+    headers: a2aHeaders(requestId, { "Cache-Control": "public, max-age=300" }),
   });
 });

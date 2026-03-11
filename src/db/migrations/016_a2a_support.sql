@@ -7,11 +7,15 @@
 -- Safe: Postgres 11+ lazy default, no table rewrite
 ALTER TABLE agents ADD COLUMN IF NOT EXISTS a2a_enabled BOOLEAN NOT NULL DEFAULT FALSE;
 
+-- Partial index for Agent Card queries (only indexes the small set of enabled agents)
+CREATE INDEX IF NOT EXISTS idx_agents_a2a_enabled ON agents (tenant_id) WHERE a2a_enabled = true;
+
 -- ============================================================
 -- 2. Add created_by_key_id to runs
 -- ============================================================
 -- Nullable — existing runs have no key tracking.
--- Used by A2A tasks/get and tasks/cancel to scope visibility to the creating API key.
+-- Phase 1: records which API key created the run (audit trail).
+-- Phase 2: will scope tasks/get and tasks/cancel visibility to the creating API key.
 ALTER TABLE runs ADD COLUMN IF NOT EXISTS created_by_key_id UUID REFERENCES api_keys(id) ON DELETE SET NULL;
 
 -- ============================================================

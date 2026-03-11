@@ -18,6 +18,7 @@ const AgentWithTenant = z.object({
   composio_toolkits: z.array(z.string()),
   max_turns: z.coerce.number(),
   max_budget_usd: z.coerce.number(),
+  a2a_enabled: z.boolean().default(false),
   created_at: z.coerce.string(),
   run_count: z.coerce.number(),
   last_run_at: z.coerce.string().nullable(),
@@ -33,7 +34,7 @@ export default async function AgentsPage() {
     query(
     AgentWithTenant,
     `SELECT a.id, a.tenant_id, t.name AS tenant_name, a.name, a.description, a.model,
-       a.permission_mode, a.composio_toolkits, a.max_turns, a.max_budget_usd, a.created_at,
+       a.permission_mode, a.composio_toolkits, a.max_turns, a.max_budget_usd, a.a2a_enabled, a.created_at,
        (SELECT COUNT(*)::int FROM schedules s WHERE s.agent_id = a.id AND s.enabled = true) AS schedule_count,
        COUNT(DISTINCT r.id)::int AS run_count,
        MAX(r.created_at) AS last_run_at,
@@ -73,9 +74,14 @@ export default async function AgentsPage() {
           {agents.map((a) => (
             <AdminTableRow key={a.id}>
               <td className="p-3 font-medium">
-                <Link href={`/admin/agents/${a.id}`} className="text-primary hover:underline">
-                  {a.name}
-                </Link>
+                <div className="flex items-center gap-2">
+                  <Link href={`/admin/agents/${a.id}`} className="text-primary hover:underline">
+                    {a.name}
+                  </Link>
+                  {a.a2a_enabled && (
+                    <Badge className="text-[10px] px-1.5 py-0 bg-indigo-500/10 text-indigo-400 border-indigo-500/20">A2A</Badge>
+                  )}
+                </div>
               </td>
               <td className="p-3 text-muted-foreground text-xs max-w-xs truncate" title={a.description ?? undefined}>
                 {a.description ?? "—"}

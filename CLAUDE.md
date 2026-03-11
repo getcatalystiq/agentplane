@@ -9,11 +9,21 @@ A multi-tenant platform for running Claude Agent SDK agents in isolated Vercel S
 **Core concepts:**
 - **Tenant** — isolated workspace with its own API keys, agents, budget, and timezone
 - **Agent** — configuration (model, tools, permissions, skills, plugins, git repo, schedule, max runtime) that runs Claude Agent SDK
-- **Run** — a single agent execution triggered by API, schedule, playground, or chat; streams NDJSON events; tracks `triggered_by` source
+- **Run** — a single agent execution triggered by API, schedule, playground, chat, or A2A; streams NDJSON events; tracks `triggered_by` source
 - **Session** — persistent multi-turn conversation with sandbox kept alive; uses Claude Agent SDK `resume: sessionId` for context preservation; each message creates a run with `triggered_by: 'chat'`
 - **Schedule** — per-agent cron configuration (manual/hourly/daily/weekdays/weekly) with timezone-aware execution
 - **MCP Server** — custom OAuth-authenticated tool server registered by admins; agents connect via OAuth 2.1 PKCE
 - **Plugin Marketplace** — GitHub repo containing reusable skills/commands that agents can install
+- **A2A Protocol** — Agent-to-Agent protocol (Linux Foundation) server; exposes agents to external A2A-compliant clients via Agent Cards and JSON-RPC
+
+**Execution flow (A2A):**
+1. External client discovers agents via `GET /api/a2a/{slug}/.well-known/agent-card.json` (public, rate-limited)
+2. Client sends `message/send` or `message/stream` JSON-RPC to `POST /api/a2a/{slug}/jsonrpc` (Bearer auth)
+3. `@a2a-js/sdk` routes request through `DefaultRequestHandler` → `SandboxAgentExecutor`
+4. Executor creates a run (`triggered_by: 'a2a'`), launches sandbox, streams log events
+5. `RunBackedTaskStore` bridges A2A Task state to run status (status-only UPDATEs, deduplicated)
+6. `finalizeRun()` persists transcript, records billing, stops sandbox
+7. Final A2A status event published; SSE stream closes with `[DONE]` sentinel
 
 **Execution flow (one-shot runs):**
 1. Client POSTs to `/api/agents/:id/runs` (or `/api/runs`) with a prompt
@@ -59,6 +69,9 @@ src/
   app/
     page.tsx              # Landing page ("Claude Agents as an API")
     api/
+      a2a/[slug]/         # A2A protocol endpoints
+        .well-known/agent-card.json/  # public Agent Card discovery (rate-limited, cached)
+        jsonrpc/          # authenticated JSON-RPC (message/send, message/stream, tasks/get, tasks/cancel)
       agents/             # CRUD + run creation + skills + plugins + Composio OAuth + MCP connections
       composio/           # tenant-scoped Composio toolkit + tool discovery
       internal/           # internal endpoints (run transcript upload from sandbox)
@@ -91,20 +104,21 @@ src/
       (dashboard)/
         page.tsx          # dashboard overview (stat cards + run/cost charts)
         run-charts.tsx    # Recharts line charts (runs/day, cost/day per agent)
-        agents/           # agent list + detail (edit, connectors, skills, plugins, playground, schedule)
+        agents/           # agent list + detail (edit, connectors, skills, plugins, playground, schedule, A2A info)
         mcp-servers/      # custom MCP server management
         plugin-marketplaces/  # marketplace list + detail + plugin editor (tabbed: Skills, Commands, Connectors)
-        runs/             # run list + detail (transcript viewer, cancel button, run source badge)
+        runs/             # run list + detail (transcript viewer, cancel button, run source badge, source filter)
         tenants/          # tenant list + detail + creation (API keys, budget, timezone)
   db/
     index.ts              # DB client (Pool, query helpers, RLS context, transactions)
     migrate.ts            # migration runner
-    migrations/           # sequential SQL migration files (001–015)
+    migrations/           # sequential SQL migration files (001–016)
   lib/
+    a2a.ts                # A2A protocol: status mapping, Agent Card builder/cache, RunBackedTaskStore, SandboxAgentExecutor, input validation
     types.ts              # branded types, domain interfaces, StreamEvent union
     env.ts                # Zod-validated env (getEnv())
     validation.ts         # Zod request/response schemas
-    auth.ts               # API key authentication + tenant RLS context
+    auth.ts               # API key authentication + tenant RLS context + A2A single-query auth
     admin-auth.ts         # admin JWT + cookie auth
     sandbox.ts            # Vercel Sandbox creation + SDK snapshot management + Claude Agent SDK runner + session sandbox + skill/plugin injection
     run-executor.ts       # run preparation + execution abstraction (sandbox setup, transcript, billing)
@@ -140,7 +154,8 @@ src/
     toolkit-multiselect.tsx  # Composio toolkit picker (search, logos)
     local-date.tsx        # client-side date formatting
     ui/                   # shared UI primitives (badge, button, card, dialog, confirm-dialog, form-field, etc.)
-      run-source-badge.tsx   # color-coded badge for run trigger source (API, Schedule, Playground)
+      copy-button.tsx        # clipboard copy button with checkmark feedback
+      run-source-badge.tsx   # color-coded badge for run trigger source (API, Schedule, Playground, Chat, A2A)
       detail-page-header.tsx # standardized detail page header
       section-header.tsx     # consistent section headers
       confirm-dialog.tsx     # managed confirmation dialog (replaces browser confirm())
@@ -179,10 +194,10 @@ Neon Postgres with Row-Level Security (RLS). Tables: `tenants`, `api_keys`, `age
 - Agent names are unique per tenant
 - RLS enforced via `app.current_tenant_id` session config (fail-closed via `NULLIF`)
 - Tenant-scoped transactions via `withTenantTransaction()`
-- Migrations: numbered SQL files in `src/db/migrations/` (currently 001–015), run via `npm run migrate`
+- Migrations: numbered SQL files in `src/db/migrations/` (currently 001–016), run via `npm run migrate`
 - `tenants` table includes: `timezone` column for schedule evaluation
-- `agents` table includes: Composio MCP cache columns, `composio_allowed_tools` (per-toolkit tool filtering), `skills` JSONB, `plugins` JSONB, schedule columns (`schedule_frequency`, `schedule_time`, `schedule_day_of_week`, `schedule_prompt`, `schedule_enabled`, `last_run_at`, `next_run_at`), `max_runtime_seconds` (60–3600, default 600)
-- `runs` table includes: `triggered_by` column (`api`, `schedule`, `playground`, `chat`) to track run source; `session_id` FK to sessions table for chat messages
+- `agents` table includes: Composio MCP cache columns, `composio_allowed_tools` (per-toolkit tool filtering), `skills` JSONB, `plugins` JSONB, schedule columns (`schedule_frequency`, `schedule_time`, `schedule_day_of_week`, `schedule_prompt`, `schedule_enabled`, `last_run_at`, `next_run_at`), `max_runtime_seconds` (60–3600, default 600), `a2a_enabled` (boolean, default false; partial index on `tenant_id WHERE a2a_enabled = true`)
+- `runs` table includes: `triggered_by` column (`api`, `schedule`, `playground`, `chat`, `a2a`) to track run source; `created_by_key_id` FK to api_keys (audit trail for A2A); `session_id` FK to sessions table for chat messages
 - `sessions` table includes: `sandbox_id` (NULL when stopped), `sdk_session_id` (Claude Agent SDK session), `session_blob_url` (Vercel Blob backup), `status` (creating/active/idle/stopped), `message_count`, `idle_since`, `last_backup_at`; state machine: creating→active/idle/stopped, active→idle/stopped, idle→active/stopped; max 5 concurrent sessions per tenant
 - `mcp_servers` — admin-managed global registry (OAuth 2.1 client credentials, no RLS)
 - `mcp_connections` — per-agent OAuth connections (tenant-scoped RLS, unique per agent-server pair)
@@ -205,7 +220,7 @@ Neon Postgres with Row-Level Security (RLS). Tables: `tenants`, `api_keys`, `age
 
 ## API Authentication
 
-All routes (except `/api/health`) require `Authorization: Bearer <api_key>`. Admin routes use `ADMIN_API_KEY` (or JWT cookie via `/api/admin/login`). OAuth callbacks (`/api/agents/*/connectors/*/callback`, `/api/mcp-servers/*/callback`) are unauthenticated (external provider redirects). API keys are hashed with SHA-256; optionally encrypted at rest with `ENCRYPTION_KEY`.
+All routes (except `/api/health`) require `Authorization: Bearer <api_key>`. Admin routes use `ADMIN_API_KEY` (or JWT cookie via `/api/admin/login`). OAuth callbacks (`/api/agents/*/connectors/*/callback`, `/api/mcp-servers/*/callback`) are unauthenticated (external provider redirects). A2A Agent Card (`/.well-known/agent-card.json`) is public (rate-limited by IP). A2A JSON-RPC uses `authenticateA2aRequest()` (single-query slug+key auth, constant-time). API keys are hashed with SHA-256; optionally encrypted at rest with `ENCRYPTION_KEY`.
 
 ## Deployment
 
@@ -216,7 +231,7 @@ All routes (except `/api/health`) require `Authorization: Bearer <api_key>`. Adm
 - Migration connection priority: `DATABASE_URL_DIRECT` → `DATABASE_URL_UNPOOLED` → `DATABASE_URL`
 - `DATABASE_URL_UNPOOLED` is auto-set when Neon is linked via the Vercel integration
 - Security headers set via `next.config.ts`: HSTS, X-Content-Type-Options, X-Frame-Options DENY, Referrer-Policy
-- Vercel functions config: `app/api/runs/**` and `app/api/sessions/**` have `supportsCancellation: true` for streaming cancellation
+- Vercel functions config: `app/api/runs/**`, `app/api/sessions/**`, and `app/api/a2a/**` have `supportsCancellation: true` for streaming cancellation
 
 ## Sandbox & Runner
 
@@ -266,3 +281,13 @@ All routes (except `/api/health`) require `Authorization: Bearer <api_key>`. Adm
 - Session hot path parallelizes `buildMcpConfig` + `fetchPluginContent` + `reconnectSessionSandbox` via `Promise.all()`; on reconnect success, `updateMcpConfig()` injects fresh MCP tokens
 - Session message routes parallelize budget check + agent load via `Promise.all()`
 - Session sandbox skips `extendTimeout` if session has been idle < 5 minutes
+- A2A protocol uses `@a2a-js/sdk@0.3.12` with `DefaultRequestHandler` + `JsonRpcTransportHandler`; per-request handler creation for multi-tenant isolation
+- A2A Agent Card cache: process-level Map with 60s TTL and 100-entry max size; keyed by tenant slug
+- `RunBackedTaskStore.save()` uses `lastWrittenStatus` tracking to reduce ~200 DB calls/run to ~3; terminal state guard prevents state machine bypass
+- `SandboxAgentExecutor` creates runs via `createRun()`, delegates to `prepareRunExecution()` + `finalizeRun()` (shared with regular runs)
+- A2A error sanitization: `RunBackedTaskStore.save()` catches all errors and throws `A2AError.internalError()` to prevent SQL/internal detail leaks
+- A2A budget enforcement: best-effort check in route (non-transactional), authoritative check inside `createRun()` (transactional)
+- A2A `cancelTask` handles both `pending` and `running` states; stops sandbox via `reconnectSandbox()` (mirrors `/api/runs/:id/cancel`)
+- A2A SSE streaming sends heartbeats (15s), `data: [DONE]\n\n` sentinel on completion
+- `a2aHeaders()` helper shared between JSON-RPC and Agent Card routes for consistent `A2A-Version` + `A2A-Request-Id` headers
+- Admin UI: A2A badge on agent list, A2A info section on agent detail (endpoint URLs + Agent Card preview), source filter on runs page

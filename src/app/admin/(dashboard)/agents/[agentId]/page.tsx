@@ -12,11 +12,13 @@ import { LocalDate } from "@/components/local-date";
 import { queryOne, query } from "@/db";
 import { AgentRow, RunRow, TenantRow, ScheduleRow } from "@/lib/validation";
 import { AgentEditForm } from "./edit-form";
+import { A2aInfoSection } from "./a2a-info-section";
 import { SkillsEditor } from "./skills-editor";
 import { ConnectorsManager } from "./connectors-manager";
 import { PluginsManager } from "./plugins-manager";
 import { ScheduleEditor } from "./schedule-editor";
 import { AgentHeaderActions } from "./header-actions";
+import { getCallbackBaseUrl } from "@/lib/mcp-connections";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +74,13 @@ export default async function AgentDetailPage({
       </div>
 
       <AgentEditForm agent={agent} />
+
+      {agent.a2a_enabled && tenant && (
+        <A2aInfoSection
+          tenantSlug={tenant.slug}
+          baseUrl={getCallbackBaseUrl()}
+        />
+      )}
 
       <ConnectorsManager agentId={agent.id} toolkits={agent.composio_toolkits} composioAllowedTools={agent.composio_allowed_tools} hasPlugins={agent.plugins.length > 0} />
 
