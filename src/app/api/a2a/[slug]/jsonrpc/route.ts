@@ -5,13 +5,12 @@ import {
   ServerCallContext,
   A2AError,
 } from "@a2a-js/sdk/server";
-import type { JSONRPCResponse } from "@a2a-js/sdk";
+import type { JSONRPCResponse, Message } from "@a2a-js/sdk";
 import { withErrorHandler } from "@/lib/api";
 import { authenticateA2aRequest } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { RateLimitError, ValidationError } from "@/lib/errors";
+import { RateLimitError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
-import { checkTenantBudget } from "@/lib/runs";
 import { getHttpClient } from "@/db";
 import { z } from "zod";
 import {
@@ -24,6 +23,7 @@ import {
   sanitizeRequestId,
 } from "@/lib/a2a";
 import { getIdempotentResponse, setIdempotentResponse } from "@/lib/idempotency";
+import { getCallbackBaseUrl } from "@/lib/mcp-connections";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60; // 55s poll + overhead
@@ -38,24 +38,16 @@ const TenantForBudgetRow = z.object({
   current_month_spend: z.coerce.number(),
 });
 
+function a2aHeaders(requestId: string, extra?: Record<string, string>): Record<string, string> {
+  return { "A2A-Version": "1.0", "A2A-Request-Id": requestId, ...extra };
+}
+
 export const POST = withErrorHandler(async (
   request: NextRequest,
   context,
 ) => {
   const { slug } = await context!.params;
   const requestId = sanitizeRequestId(request.headers.get("a2a-request-id"));
-
-  // Enforce body size limit via Content-Length
-  const contentLength = parseInt(request.headers.get("content-length") || "0", 10);
-  if (contentLength > MAX_BODY_SIZE) {
-    return NextResponse.json(
-      { error: { code: "payload_too_large", message: "Request body exceeds 1MB limit" } },
-      {
-        status: 413,
-        headers: { "A2A-Version": "1.0", "A2A-Request-Id": requestId },
-      },
-    );
-  }
 
   // Auth
   const auth = await authenticateA2aRequest(
@@ -70,15 +62,12 @@ export const POST = withErrorHandler(async (
     throw new RateLimitError(Math.ceil(rl.retryAfterMs / 1000));
   }
 
-  // Read and validate body size (streaming counter for bodies without Content-Length)
+  // Read and validate body size
   const bodyText = await request.text();
   if (bodyText.length > MAX_BODY_SIZE) {
     return NextResponse.json(
-      { error: { code: "payload_too_large", message: "Request body exceeds 1MB limit" } },
-      {
-        status: 413,
-        headers: { "A2A-Version": "1.0", "A2A-Request-Id": requestId },
-      },
+      { jsonrpc: "2.0", error: { code: -32600, message: "Request body exceeds 1MB limit" }, id: null },
+      { status: 200, headers: a2aHeaders(requestId) },
     );
   }
 
@@ -88,10 +77,7 @@ export const POST = withErrorHandler(async (
   } catch {
     return NextResponse.json(
       { jsonrpc: "2.0", error: { code: -32700, message: "Parse error" }, id: null },
-      {
-        status: 200, // JSON-RPC errors are always 200
-        headers: { "A2A-Version": "1.0", "A2A-Request-Id": requestId },
-      },
+      { status: 200, headers: a2aHeaders(requestId) },
     );
   }
 
@@ -102,7 +88,7 @@ export const POST = withErrorHandler(async (
     if (cachedResponse) {
       return NextResponse.json(cachedResponse, {
         status: 200,
-        headers: { "A2A-Version": "1.0", "A2A-Request-Id": requestId },
+        headers: a2aHeaders(requestId),
       });
     }
   }
@@ -112,32 +98,17 @@ export const POST = withErrorHandler(async (
     const params = body.params as Record<string, unknown> | undefined;
     const message = params?.message as Record<string, unknown> | undefined;
     if (message) {
-      const validationError = validateA2aMessage(message as never);
+      const validationError = validateA2aMessage(message as unknown as Message);
       if (validationError) {
-        const errorResp = {
-          jsonrpc: "2.0",
-          error: { code: -32602, message: validationError },
-          id: body.id ?? null,
-        };
-        return NextResponse.json(errorResp, {
-          status: 200,
-          headers: { "A2A-Version": "1.0", "A2A-Request-Id": requestId },
-        });
+        return NextResponse.json(
+          { jsonrpc: "2.0", error: { code: -32602, message: validationError }, id: body.id ?? null },
+          { status: 200, headers: a2aHeaders(requestId) },
+        );
       }
     }
-
-    // Extract and clamp max_budget_usd from metadata
-    const metadata = (params?.message as Record<string, unknown>)?.metadata as Record<string, unknown> | undefined;
-    const agentplaneMeta = metadata?.agentplane as Record<string, unknown> | undefined;
-    const requestedMaxBudget = typeof agentplaneMeta?.max_budget_usd === "number"
-      ? agentplaneMeta.max_budget_usd
-      : undefined;
-
-    // Budget clamping happens in SandboxAgentExecutor — just pass it through
-    void requestedMaxBudget;
   }
 
-  // Resolve tenant info for Agent Card
+  // Resolve tenant info for budget enforcement
   const sql = getHttpClient();
   const tenantRows = await sql`
     SELECT id, name, status, monthly_budget_usd, current_month_spend
@@ -146,19 +117,28 @@ export const POST = withErrorHandler(async (
   if (tenantRows.length === 0) {
     return NextResponse.json(
       { jsonrpc: "2.0", error: { code: -32001, message: "Agent not found" }, id: body.id ?? null },
-      {
-        status: 200,
-        headers: { "A2A-Version": "1.0", "A2A-Request-Id": requestId },
-      },
+      { status: 200, headers: a2aHeaders(requestId) },
     );
   }
   const tenant = TenantForBudgetRow.parse(tenantRows[0]);
+
+  // Enforce budget — suspended or over-budget tenants cannot trigger A2A runs
+  if (tenant.status === "suspended") {
+    return NextResponse.json(
+      { jsonrpc: "2.0", error: { code: -32001, message: "Tenant is suspended" }, id: body.id ?? null },
+      { status: 200, headers: a2aHeaders(requestId) },
+    );
+  }
+  if (tenant.current_month_spend >= tenant.monthly_budget_usd) {
+    return NextResponse.json(
+      { jsonrpc: "2.0", error: { code: -32001, message: "Monthly budget exceeded" }, id: body.id ?? null },
+      { status: 200, headers: a2aHeaders(requestId) },
+    );
+  }
   const remainingBudget = tenant.monthly_budget_usd - tenant.current_month_spend;
 
-  // Build or get cached Agent Card
-  const proto = request.headers.get("x-forwarded-proto") || "https";
-  const host = request.headers.get("host") || "localhost";
-  const baseUrl = `${proto}://${host}`;
+  // Use trusted baseUrl from env (not request headers — prevents cache poisoning)
+  const baseUrl = getCallbackBaseUrl();
 
   let agentCard = getCachedAgentCard(slug);
   if (!agentCard) {
@@ -166,10 +146,7 @@ export const POST = withErrorHandler(async (
     if (!agentCard) {
       return NextResponse.json(
         { jsonrpc: "2.0", error: { code: -32001, message: "No A2A-enabled agents found" }, id: body.id ?? null },
-        {
-          status: 200,
-          headers: { "A2A-Version": "1.0", "A2A-Request-Id": requestId },
-        },
+        { status: 200, headers: a2aHeaders(requestId) },
       );
     }
     setCachedAgentCard(slug, agentCard);
@@ -187,7 +164,6 @@ export const POST = withErrorHandler(async (
     tenantId: auth.tenantId,
     createdByKeyId: auth.apiKeyId,
     platformApiUrl: baseUrl,
-    resolveAgent: async () => null, // Agent resolution handled in executor
     remainingBudget,
     requestedMaxBudget,
   });
@@ -246,8 +222,7 @@ export const POST = withErrorHandler(async (
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
         "Connection": "keep-alive",
-        "A2A-Version": "1.0",
-        "A2A-Request-Id": requestId,
+        ...a2aHeaders(requestId),
       },
     });
   }
@@ -262,9 +237,6 @@ export const POST = withErrorHandler(async (
 
   return NextResponse.json(jsonResult, {
     status: 200,
-    headers: {
-      "A2A-Version": "1.0",
-      "A2A-Request-Id": requestId,
-    },
+    headers: a2aHeaders(requestId),
   });
 });

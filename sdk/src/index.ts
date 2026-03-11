@@ -13,6 +13,7 @@ export type {
   UpdateAgentParams,
   Run,
   RunStatus,
+  RunTriggeredBy,
   CreateRunParams,
   ListRunsParams,
   // Sessions

@@ -82,6 +82,10 @@ export interface CreateAgentParams {
 
 export type UpdateAgentParams = Partial<CreateAgentParams>;
 
+// --- Run Trigger Source ---
+
+export type RunTriggeredBy = "api" | "schedule" | "playground" | "chat" | "a2a";
+
 // --- Run ---
 
 export interface Run {
@@ -103,7 +107,7 @@ export interface Run {
   transcript_blob_url: string | null;
   error_type: string | null;
   error_messages: string[];
-  triggered_by: string;
+  triggered_by: RunTriggeredBy;
   session_id: string | null;
   sandbox_id: string | null;
   started_at: string | null;
@@ -122,7 +126,7 @@ export interface ListRunsParams extends PaginationParams {
   agent_id?: string | undefined;
   session_id?: string | undefined;
   status?: RunStatus | undefined;
-  triggered_by?: string | undefined;
+  triggered_by?: RunTriggeredBy | undefined;
 }
 
 // --- Pagination ---

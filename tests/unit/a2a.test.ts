@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   runStatusToA2a,
   a2aToRunStatus,
+  runToA2aTask,
   validateA2aMessage,
   sanitizeRequestId,
 } from "@/lib/a2a";
@@ -61,6 +62,60 @@ describe("a2aToRunStatus", () => {
     expect(a2aToRunStatus("input-required")).toBeNull();
     expect(a2aToRunStatus("auth-required")).toBeNull();
     expect(a2aToRunStatus("unknown")).toBeNull();
+  });
+});
+
+describe("runToA2aTask", () => {
+  const baseRun = {
+    id: "a0b1c2d3-e4f5-4678-9abc-def012345678",
+    status: "completed" as const,
+    prompt: "test prompt",
+    result_summary: "Task completed successfully",
+    transcript_blob_url: "https://blob.example.com/transcript",
+    duration_ms: 5000,
+    created_at: "2026-01-01T00:00:00Z",
+    completed_at: "2026-01-01T00:00:05Z",
+  };
+
+  it("maps completed run with result artifact", () => {
+    const task = runToA2aTask(baseRun);
+    expect(task.id).toBe(baseRun.id);
+    expect(task.kind).toBe("task");
+    expect(task.status.state).toBe("completed");
+    expect(task.status.timestamp).toBe(baseRun.completed_at);
+    expect(task.artifacts).toHaveLength(1);
+    expect(task.artifacts![0].parts[0]).toEqual({ kind: "text", text: "Task completed successfully" });
+  });
+
+  it("maps failed run with result artifact", () => {
+    const task = runToA2aTask({ ...baseRun, status: "failed", result_summary: "Error occurred" });
+    expect(task.status.state).toBe("failed");
+    expect(task.artifacts).toHaveLength(1);
+  });
+
+  it("maps pending run with no artifacts", () => {
+    const task = runToA2aTask({ ...baseRun, status: "pending", result_summary: null, completed_at: null });
+    expect(task.status.state).toBe("working");
+    expect(task.status.timestamp).toBe(baseRun.created_at);
+    expect(task.artifacts).toBeUndefined();
+  });
+
+  it("does not include transcript URL in metadata", () => {
+    const task = runToA2aTask(baseRun);
+    const agentplaneMeta = task.metadata?.agentplane as Record<string, unknown> | undefined;
+    expect(agentplaneMeta).toBeDefined();
+    expect(agentplaneMeta?.duration_ms).toBe(5000);
+    expect(agentplaneMeta).not.toHaveProperty("transcript_url");
+  });
+
+  it("omits metadata when duration is zero", () => {
+    const task = runToA2aTask({ ...baseRun, duration_ms: 0 });
+    expect(task.metadata).toBeUndefined();
+  });
+
+  it("uses contextId = taskId (Phase 1)", () => {
+    const task = runToA2aTask(baseRun);
+    expect(task.contextId).toBe(task.id);
   });
 });
 

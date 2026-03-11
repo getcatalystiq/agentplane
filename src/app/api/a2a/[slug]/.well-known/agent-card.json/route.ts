@@ -10,6 +10,7 @@ import {
   sanitizeRequestId,
 } from "@/lib/a2a";
 import { getHttpClient } from "@/db";
+import { getCallbackBaseUrl } from "@/lib/mcp-connections";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +27,7 @@ export const GET = withErrorHandler(async (
   const { slug } = await context!.params;
 
   // Rate limit: 60 req/min per IP (unauthenticated endpoint)
-  const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const clientIp = request.headers.get("x-real-ip") || request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
   const rl = checkRateLimit(`a2a-card:${clientIp}`, 60, 60_000);
   if (!rl.allowed) {
     logger.warn("A2A Agent Card rate limited", { ip: clientIp, slug });
@@ -72,10 +73,8 @@ export const GET = withErrorHandler(async (
 
   const tenant = TenantSlugRow.parse(tenantRows[0]);
 
-  // Build base URL from request
-  const proto = request.headers.get("x-forwarded-proto") || "https";
-  const host = request.headers.get("host") || "localhost";
-  const baseUrl = `${proto}://${host}`;
+  // Use trusted baseUrl from env (not request headers — prevents cache poisoning)
+  const baseUrl = getCallbackBaseUrl();
 
   const card = await buildAgentCard(slug, tenant.name, baseUrl);
 

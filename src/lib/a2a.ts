@@ -18,7 +18,7 @@ import {
 } from "@a2a-js/sdk/server";
 import { getHttpClient } from "@/db";
 import { createRun, transitionRunStatus } from "@/lib/runs";
-import { prepareRunExecution } from "@/lib/run-executor";
+import { prepareRunExecution, finalizeRun } from "@/lib/run-executor";
 import { logger } from "@/lib/logger";
 import type { RunStatus, TenantId, AgentId, RunId } from "@/lib/types";
 import type { AgentInternal } from "@/lib/validation";
@@ -57,15 +57,15 @@ export function a2aToRunStatus(state: TaskState): RunStatus | null {
 const agentCardCache = new Map<string, { card: AgentCard; expiresAt: number }>();
 const AGENT_CARD_TTL_MS = 60_000;
 
-export function getCachedAgentCard(tenantId: string): AgentCard | null {
-  const cached = agentCardCache.get(tenantId);
+export function getCachedAgentCard(cacheKey: string): AgentCard | null {
+  const cached = agentCardCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.card;
-  if (cached) agentCardCache.delete(tenantId);
+  if (cached) agentCardCache.delete(cacheKey);
   return null;
 }
 
-export function setCachedAgentCard(tenantId: string, card: AgentCard): void {
-  agentCardCache.set(tenantId, { card, expiresAt: Date.now() + AGENT_CARD_TTL_MS });
+export function setCachedAgentCard(cacheKey: string, card: AgentCard): void {
+  agentCardCache.set(cacheKey, { card, expiresAt: Date.now() + AGENT_CARD_TTL_MS });
 }
 
 // --- Agent Card Builder ---
@@ -162,9 +162,8 @@ export function runToA2aTask(run: z.infer<typeof RunForTaskRow>): Task {
   }
 
   const metadata: Record<string, unknown> = {};
-  if (run.transcript_blob_url) {
+  if (run.duration_ms > 0) {
     metadata["agentplane"] = {
-      transcript_url: run.transcript_blob_url,
       duration_ms: run.duration_ms,
     };
   }
@@ -185,6 +184,8 @@ export function runToA2aTask(run: z.infer<typeof RunForTaskRow>): Task {
 // --- RunBackedTaskStore ---
 
 export class RunBackedTaskStore implements TaskStore {
+  private lastWrittenStatus: TaskState | null = null;
+
   constructor(
     private readonly tenantId: TenantId,
     private readonly createdByKeyId?: string,
@@ -217,7 +218,9 @@ export class RunBackedTaskStore implements TaskStore {
 
   async save(task: Task, _context?: ServerCallContext): Promise<void> {
     // Status-only UPDATE — SDK calls save() on EVERY event (50-200 per run).
-    // No JSONB history, no version check. History derived from transcript on load().
+    // Skip if status hasn't changed (reduces ~200 DB calls to ~3 per run).
+    if (task.status.state === this.lastWrittenStatus) return;
+
     try {
       const runStatus = a2aToRunStatus(task.status.state);
       if (!runStatus) return; // Unknown/unhandled state — skip
@@ -226,7 +229,9 @@ export class RunBackedTaskStore implements TaskStore {
       await sql`
         UPDATE runs SET status = ${runStatus}
         WHERE id = ${task.id} AND tenant_id = ${this.tenantId}
+          AND status NOT IN ('completed', 'failed', 'cancelled', 'timed_out')
       `;
+      this.lastWrittenStatus = task.status.state;
     } catch (err) {
       // CRITICAL: SDK leaks err.message into JSON-RPC responses.
       // Never throw SQL, connection strings, or internal details.
@@ -246,7 +251,6 @@ interface ExecutorDeps {
   tenantId: TenantId;
   createdByKeyId: string;
   platformApiUrl: string;
-  resolveAgent: (agentName: string) => Promise<AgentInternal | null>;
   remainingBudget: number;
   requestedMaxBudget?: number;
 }
@@ -281,13 +285,13 @@ export class SandboxAgentExecutor implements AgentExecutor {
       }
       const prompt = textParts.map((p) => p.text).join("\n");
 
-      // Resolve agent from skill ID (agent name)
-      // The DefaultRequestHandler doesn't pass skill info in requestContext,
-      // so we use the first a2a_enabled agent for this tenant.
-      // TODO: When SDK supports skill routing, resolve by skill ID.
+      // Resolve agent — Phase 1 supports one A2A-enabled agent per tenant.
       const agents = await this.loadA2aAgents();
       if (agents.length === 0) {
         throw A2AError.internalError("No A2A-enabled agents found");
+      }
+      if (agents.length > 1) {
+        throw A2AError.internalError("Phase 1 supports one A2A-enabled agent per tenant");
       }
       const agent = agents[0];
 
@@ -312,7 +316,7 @@ export class SandboxAgentExecutor implements AgentExecutor {
         },
       );
 
-      // Prepare and start sandbox execution (detached)
+      // Prepare and start sandbox execution
       const { sandbox, logIterator, transcriptChunks } = await prepareRunExecution({
         agent,
         tenantId: this.deps.tenantId,
@@ -324,21 +328,12 @@ export class SandboxAgentExecutor implements AgentExecutor {
         maxRuntimeSeconds: agent.max_runtime_seconds,
       });
 
-      // PATH B — Streaming: consume logIterator, publish events
+      // Consume log stream, publish A2A events
       try {
         for await (const line of logIterator) {
           try {
             const event = JSON.parse(line);
-            if (event.type === "text_delta" && event.text) {
-              // Publish status update with working state during streaming
-              eventBus.publish({
-                kind: "status-update",
-                taskId,
-                contextId: requestContext.contextId,
-                status: { state: "working", timestamp: new Date().toISOString() },
-                final: false,
-              } as TaskStatusUpdateEvent);
-            } else if (event.type === "result") {
+            if (event.type === "result") {
               // Publish artifact with final result
               const resultText = event.result_summary || event.text || "";
               if (resultText) {
@@ -366,7 +361,10 @@ export class SandboxAgentExecutor implements AgentExecutor {
         });
       }
 
-      // Finalize — check run status from DB
+      // Finalize run: persist transcript, update billing, stop sandbox
+      await finalizeRun(run.id as RunId, this.deps.tenantId, transcriptChunks, sandbox, effectiveBudget);
+
+      // Read finalized status and publish final A2A event
       const sql = getHttpClient();
       const finalRows = await sql`
         SELECT status FROM runs WHERE id = ${run.id} AND tenant_id = ${this.deps.tenantId}
