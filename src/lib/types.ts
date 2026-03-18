@@ -1,6 +1,7 @@
 // Branded types to prevent parameter swaps at compile time
 export type TenantId = string & { readonly __brand: "TenantId" };
 export type AgentId = string & { readonly __brand: "AgentId" };
+export type AgentSlug = string & { readonly __brand: "AgentSlug" };
 export type RunId = string & { readonly __brand: "RunId" };
 export type McpServerId = string & { readonly __brand: "McpServerId" };
 export type McpConnectionId = string & { readonly __brand: "McpConnectionId" };

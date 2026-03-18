@@ -5,6 +5,18 @@ import { withErrorHandler } from "@/lib/api";
 import { generateId } from "@/lib/crypto";
 import { z } from "zod";
 
+const RESERVED_SLUGS = new Set(["well-known", "api", "admin", "health", "jsonrpc"]);
+
+function slugifyName(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/[\s_]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 export const dynamic = "force-dynamic";
 
 const AgentWithTenant = z.object({
@@ -62,28 +74,42 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   const id = generateId();
 
-  await execute(
-    `INSERT INTO agents (id, tenant_id, name, description, git_repo_url, git_branch,
-      composio_toolkits, skills, model, allowed_tools, permission_mode, max_turns, max_budget_usd, max_runtime_seconds, a2a_enabled)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13, $14, $15)`,
-    [
-      id,
-      input.tenant_id,
-      input.name,
-      input.description ?? null,
-      input.git_repo_url ?? null,
-      input.git_branch,
-      input.composio_toolkits,
-      JSON.stringify(input.skills),
-      input.model,
-      input.allowed_tools,
-      input.permission_mode,
-      input.max_turns,
-      input.max_budget_usd,
-      input.max_runtime_seconds,
-      input.a2a_enabled,
-    ],
-  );
+  // Derive slug from name if not provided; fallback to agent-{id} for edge cases
+  const rawSlug = (input as { slug?: string }).slug ?? (slugifyName(input.name) || `agent-${id.slice(0, 8)}`);
+  if (RESERVED_SLUGS.has(rawSlug)) {
+    return NextResponse.json({ error: { message: `Slug '${rawSlug}' is reserved` } }, { status: 422 });
+  }
+
+  try {
+    await execute(
+      `INSERT INTO agents (id, tenant_id, name, slug, description, git_repo_url, git_branch,
+        composio_toolkits, skills, model, allowed_tools, permission_mode, max_turns, max_budget_usd, max_runtime_seconds, a2a_enabled)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16)`,
+      [
+        id,
+        input.tenant_id,
+        input.name,
+        rawSlug,
+        input.description ?? null,
+        input.git_repo_url ?? null,
+        input.git_branch,
+        input.composio_toolkits,
+        JSON.stringify(input.skills),
+        input.model,
+        input.allowed_tools,
+        input.permission_mode,
+        input.max_turns,
+        input.max_budget_usd,
+        input.max_runtime_seconds,
+        input.a2a_enabled,
+      ],
+    );
+  } catch (err: unknown) {
+    if (err instanceof Error && err.message.includes("23505") && err.message.includes("tenant_slug")) {
+      return NextResponse.json({ error: { message: `Slug '${rawSlug}' is already taken` } }, { status: 409 });
+    }
+    throw err;
+  }
 
   const agent = await queryOne(AgentRow, "SELECT * FROM agents WHERE id = $1", [id]);
   return NextResponse.json(agent, { status: 201 });

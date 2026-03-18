@@ -8,11 +8,13 @@ import { Button } from "@/components/ui/button";
 export function A2aInfoSection({
   agentId,
   tenantSlug,
+  agentSlug,
   baseUrl,
   initialTags,
 }: {
   agentId: string;
   tenantSlug: string;
+  agentSlug: string;
   baseUrl: string;
   initialTags: string[];
 }) {
@@ -24,9 +26,9 @@ export function A2aInfoSection({
   const [savingTags, setSavingTags] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const endpointUrl = `${baseUrl}/api/a2a/${tenantSlug}`;
-  const jsonRpcUrl = `${baseUrl}/api/a2a/${tenantSlug}/jsonrpc`;
-  const agentCardUrl = `${baseUrl}/api/a2a/${tenantSlug}/.well-known/agent-card.json`;
+  const endpointUrl = `${baseUrl}/api/a2a/${tenantSlug}/${agentSlug}`;
+  const jsonRpcUrl = `${baseUrl}/api/a2a/${tenantSlug}/${agentSlug}/jsonrpc`;
+  const agentCardUrl = `${baseUrl}/api/a2a/${tenantSlug}/${agentSlug}/.well-known/agent-card.json`;
 
   async function saveTags(nextTags: string[]) {
     setSavingTags(true);

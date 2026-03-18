@@ -59,73 +59,119 @@ export function a2aHeaders(requestId: string, extra?: Record<string, string>): R
   return { "A2A-Version": "1.0", "A2A-Request-Id": requestId, ...extra };
 }
 
-// --- Agent Card Cache (process-level, 60s TTL, max 100 entries) ---
+// --- Agent Card Cache (process-level, 60s TTL, max 1000 entries, LRU) ---
 
 const agentCardCache = new Map<string, { card: AgentCard; expiresAt: number }>();
+const agentCardInFlight = new Map<string, Promise<AgentCard | null>>();
 const AGENT_CARD_TTL_MS = 60_000;
-const AGENT_CARD_CACHE_MAX = 100;
+const AGENT_CARD_CACHE_MAX = 1000;
 
 export function getCachedAgentCard(cacheKey: string): AgentCard | null {
   const cached = agentCardCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) return cached.card;
-  if (cached) agentCardCache.delete(cacheKey);
-  return null;
+  if (!cached) return null;
+  if (cached.expiresAt <= Date.now()) {
+    agentCardCache.delete(cacheKey);
+    return null;
+  }
+  // LRU: move to end on access
+  agentCardCache.delete(cacheKey);
+  agentCardCache.set(cacheKey, cached);
+  return cached.card;
 }
 
 export function setCachedAgentCard(cacheKey: string, card: AgentCard): void {
   if (agentCardCache.size >= AGENT_CARD_CACHE_MAX) {
-    // Evict oldest entry (first inserted)
+    // Evict LRU entry (first in insertion order)
     const firstKey = agentCardCache.keys().next().value;
     if (firstKey !== undefined) agentCardCache.delete(firstKey);
   }
   agentCardCache.set(cacheKey, { card, expiresAt: Date.now() + AGENT_CARD_TTL_MS });
 }
 
+/** Fetch-or-build with in-flight deduplication. Multiple simultaneous cold requests share one DB query. */
+export async function getOrBuildAgentCard(
+  cacheKey: string,
+  build: () => Promise<AgentCard | null>,
+): Promise<AgentCard | null> {
+  const cached = getCachedAgentCard(cacheKey);
+  if (cached) return cached;
+
+  const inflight = agentCardInFlight.get(cacheKey);
+  if (inflight) return inflight;
+
+  const promise = build().then((card) => {
+    agentCardInFlight.delete(cacheKey);
+    if (card) setCachedAgentCard(cacheKey, card);
+    return card;
+  }).catch((err) => {
+    agentCardInFlight.delete(cacheKey);
+    throw err;
+  });
+  agentCardInFlight.set(cacheKey, promise);
+  return promise;
+}
+
 // --- Agent Card Builder ---
 
 const A2aAgentRow = z.object({
   id: z.string(),
+  slug: z.string(),
   name: z.string(),
   description: z.string().nullable(),
+  model: z.string(),
+  max_turns: z.coerce.number(),
   max_runtime_seconds: z.coerce.number(),
   a2a_tags: z.array(z.string()).default([]),
+  skills: z.unknown().default([]),
 });
 
-export async function buildAgentCard(
-  tenantId: string,
-  tenantSlug: string,
-  tenantName: string,
-  baseUrl: string,
-): Promise<AgentCard | null> {
+interface BuildAgentCardOptions {
+  agentId: string;
+  agentSlug: string;
+  tenantSlug: string;
+  tenantName: string;
+  baseUrl: string;
+}
+
+export async function buildAgentCard(opts: BuildAgentCardOptions): Promise<AgentCard | null> {
+  const { agentId, agentSlug, tenantSlug, tenantName, baseUrl } = opts;
   const sql = getHttpClient();
 
-  // Query a2a_enabled agents for this tenant (by ID — caller already resolved slug)
   const rows = await sql`
-    SELECT a.id, a.name, a.description, a.max_runtime_seconds, a.a2a_tags
-    FROM agents a
-    WHERE a.tenant_id = ${tenantId}
-      AND a.a2a_enabled = true
-    ORDER BY a.name
-    LIMIT 50
+    SELECT id, slug, name, description, model, max_turns, max_runtime_seconds, a2a_tags, skills
+    FROM agents
+    WHERE id = ${agentId}
+      AND a2a_enabled = true
   `;
 
-  const agents = rows.map((row: unknown) => A2aAgentRow.parse(row));
+  if (rows.length === 0) return null;
 
-  if (agents.length === 0) return null;
+  const agent = A2aAgentRow.parse(rows[0]);
+  const jsonrpcUrl = `${baseUrl}/api/a2a/${tenantSlug}/${agentSlug}/jsonrpc`;
 
-  const skills: AgentSkill[] = agents.map((agent) => ({
-    id: agent.name,
-    name: agent.name,
-    description: agent.description || `Agent: ${agent.name} (max runtime: ${agent.max_runtime_seconds}s)`,
-    inputModes: ["text/plain"],
-    outputModes: ["text/plain"],
-    tags: agent.a2a_tags,
-  }));
+  // Build skills list from agent's configured skills
+  const agentSkills: AgentSkill[] = Array.isArray(agent.skills)
+    ? (agent.skills as Array<{ name?: string; description?: string; tags?: string[] }>).map((s) => ({
+        id: s.name ?? agent.name,
+        name: s.name ?? agent.name,
+        description: s.description ?? `Skill provided by ${agent.name}`,
+        inputModes: ["text/plain"],
+        outputModes: ["text/plain"],
+        tags: s.tags ?? agent.a2a_tags,
+      }))
+    : [{
+        id: agent.name,
+        name: agent.name,
+        description: agent.description || `Agent: ${agent.name}`,
+        inputModes: ["text/plain"],
+        outputModes: ["text/plain"],
+        tags: agent.a2a_tags,
+      }];
 
   return {
-    name: tenantName,
-    description: `A2A agents provided by ${tenantName}`,
-    url: `${baseUrl}/api/a2a/${tenantSlug}/jsonrpc`,
+    name: agent.name,
+    description: agent.description || `${agent.name} — powered by ${tenantName}`,
+    url: jsonrpcUrl,
     version: "1.0.0",
     protocolVersion: "0.3.0",
     preferredTransport: "JSONRPC",
@@ -136,9 +182,9 @@ export async function buildAgentCard(
       pushNotifications: false,
       stateTransitionHistory: false,
     },
-    skills,
+    skills: agentSkills,
     additionalInterfaces: [
-      { transport: "JSONRPC", url: `${baseUrl}/api/a2a/${tenantSlug}/jsonrpc` },
+      { transport: "JSONRPC", url: jsonrpcUrl },
     ],
     provider: {
       organization: tenantName,
@@ -296,6 +342,7 @@ export class RunBackedTaskStore implements TaskStore {
 
 interface ExecutorDeps {
   tenantId: TenantId;
+  agent: AgentInternal;
   createdByKeyId: string;
   platformApiUrl: string;
   remainingBudget: number;
@@ -340,15 +387,7 @@ export class SandboxAgentExecutor implements AgentExecutor {
       }
       const prompt = textParts.map((p) => p.text).join("\n");
 
-      // Resolve agent — Phase 1 supports one A2A-enabled agent per tenant.
-      const agents = await this.loadA2aAgents();
-      if (agents.length === 0) {
-        throw A2AError.internalError("No A2A-enabled agents found");
-      }
-      if (agents.length > 1) {
-        throw A2AError.internalError("Phase 1 supports one A2A-enabled agent per tenant");
-      }
-      const agent = agents[0];
+      const agent = this.deps.agent;
 
       // Compute effective budget
       const agentBudget = agent.max_budget_usd;
@@ -539,19 +578,6 @@ export class SandboxAgentExecutor implements AgentExecutor {
     }
   }
 
-  private async loadA2aAgents(): Promise<AgentInternal[]> {
-    const sql = getHttpClient();
-    const rows = await sql`
-      SELECT * FROM agents
-      WHERE tenant_id = ${this.deps.tenantId}
-        AND a2a_enabled = true
-      ORDER BY name
-      LIMIT 10
-    `;
-    // Parse with internal schema to get all fields needed for sandbox execution
-    const { AgentRowInternal } = await import("@/lib/validation");
-    return rows.map((row: unknown) => AgentRowInternal.parse(row));
-  }
 }
 
 // --- Input Validation Helpers ---

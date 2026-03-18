@@ -59,8 +59,17 @@ export const PATCH = withErrorHandler(async (request: NextRequest, context) => {
   const params: unknown[] = [];
   let idx = 1;
 
+  // Block slug changes when a2a_enabled is true (slug is used in permanent A2A URLs)
+  if (input.slug !== undefined && current.a2a_enabled) {
+    return NextResponse.json(
+      { error: { message: "Cannot change slug while A2A is enabled. Disable A2A first." } },
+      { status: 422 },
+    );
+  }
+
   const fieldMap: Array<[keyof typeof input, string, ((v: unknown) => unknown)?]> = [
     ["name", "name"],
+    ["slug", "slug"],
     ["description", "description"],
     ["model", "model"],
     ["permission_mode", "permission_mode"],
@@ -101,6 +110,9 @@ export const PATCH = withErrorHandler(async (request: NextRequest, context) => {
     updatedAgent = AgentRow.parse(result.rows[0]);
   } catch (err) {
     await client.query("ROLLBACK");
+    if (err instanceof Error && err.message.includes("23505") && err.message.includes("tenant_slug")) {
+      return NextResponse.json({ error: { message: `Slug '${input.slug}' is already taken` } }, { status: 409 });
+    }
     throw err;
   } finally {
     client.release();
