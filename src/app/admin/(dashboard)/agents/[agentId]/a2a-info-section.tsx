@@ -12,9 +12,11 @@ export function A2aInfoSection({
   tenantSlug: string;
   baseUrl: string;
 }) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [cardPreview, setCardPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const endpointUrl = `${baseUrl}/api/a2a/${tenantSlug}`;
   const jsonRpcUrl = `${baseUrl}/api/a2a/${tenantSlug}/jsonrpc`;
   const agentCardUrl = `${baseUrl}/api/a2a/${tenantSlug}/.well-known/agent-card.json`;
 
@@ -39,37 +41,54 @@ export function A2aInfoSection({
     <div className="rounded-lg border border-indigo-500/25 p-5">
       <SectionHeader title="A2A Protocol" />
       <div className="space-y-3">
-        <div>
-          <label className="text-xs text-muted-foreground mb-1 block">JSON-RPC Endpoint</label>
-          <div className="flex items-center gap-2">
-            <code className="flex-1 rounded bg-muted px-3 py-1.5 text-xs font-mono text-foreground break-all">
-              {jsonRpcUrl}
-            </code>
-            <CopyButton text={jsonRpcUrl} />
-          </div>
+        <div className="flex items-center gap-2">
+          <code className="flex-1 rounded bg-muted px-3 py-1.5 text-xs font-mono text-foreground break-all">
+            {endpointUrl}
+          </code>
+          <CopyButton text={endpointUrl} />
         </div>
-        <div>
-          <label className="text-xs text-muted-foreground mb-1 block">Agent Card URL</label>
-          <div className="flex items-center gap-2">
-            <code className="flex-1 rounded bg-muted px-3 py-1.5 text-xs font-mono text-foreground break-all">
-              {agentCardUrl}
-            </code>
-            <CopyButton text={agentCardUrl} />
-          </div>
-        </div>
-        <div className="pt-1">
-          <Button variant="outline" size="sm" onClick={fetchAgentCard} disabled={loading}>
-            {loading ? "Loading..." : cardPreview ? "Hide Agent Card" : "Preview Agent Card"}
-          </Button>
-          {cardPreview && (
-            <div className="mt-3 relative">
-              <pre className="rounded bg-muted p-4 text-xs font-mono text-foreground overflow-x-auto max-h-96">
-                {cardPreview}
-              </pre>
-              <CopyButton text={cardPreview} className="absolute top-2 right-2" />
+        <button
+          onClick={() => setDetailsOpen((v) => !v)}
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <span>{detailsOpen ? "▾" : "▸"}</span>
+          <span>Details</span>
+        </button>
+        {detailsOpen && (
+          <div className="space-y-3 pl-1">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">JSON-RPC Endpoint</label>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 rounded bg-muted px-3 py-1.5 text-xs font-mono text-foreground break-all">
+                  {jsonRpcUrl}
+                </code>
+                <CopyButton text={jsonRpcUrl} />
+              </div>
             </div>
-          )}
-        </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Agent Card URL</label>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 rounded bg-muted px-3 py-1.5 text-xs font-mono text-foreground break-all">
+                  {agentCardUrl}
+                </code>
+                <CopyButton text={agentCardUrl} />
+              </div>
+            </div>
+            <div>
+              <Button variant="outline" size="sm" onClick={fetchAgentCard} disabled={loading}>
+                {loading ? "Loading..." : cardPreview ? "Hide Agent Card" : "Agent Card"}
+              </Button>
+              {cardPreview && (
+                <div className="mt-3 relative">
+                  <pre className="rounded bg-muted p-4 text-xs font-mono text-foreground overflow-x-auto max-h-96">
+                    {cardPreview}
+                  </pre>
+                  <CopyButton text={cardPreview} className="absolute top-2 right-2" />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
