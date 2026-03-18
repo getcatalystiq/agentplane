@@ -53,8 +53,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // A2A Agent Card is public (specific regex — NOT prefix match)
-  if (/^\/api\/a2a\/[^/]+\/\.well-known\/agent-card\.json$/.test(pathname)) {
+  // A2A public endpoints (unauthenticated): agent cards + tenant discovery index
+  if (
+    /^\/api\/a2a\/[^/]+\/[^/]+\/\.well-known\/agent-card\.json$/.test(pathname) ||
+    /^\/api\/a2a\/[^/]+\/\.well-known\/agents\.json$/.test(pathname)
+  ) {
     return NextResponse.next();
   }
 
