@@ -310,7 +310,6 @@ export async function createSandbox(config: SandboxConfig): Promise<SandboxInsta
   env.ANTHROPIC_BASE_URL = "https://ai-gateway.vercel.sh";
   env.ANTHROPIC_AUTH_TOKEN = config.aiGatewayApiKey;
   env.ANTHROPIC_API_KEY = "";
-  // Disable ToolSearch: the Agent SDK's tool_reference content blocks require
   env.ENABLE_TOOL_SEARCH = "true";
   if (config.runToken) {
     env.AGENT_PLANE_RUN_TOKEN = config.runToken;
@@ -388,7 +387,10 @@ try {
   tools = rawTools.map(t => ({
     name: t.name,
     description: t.description || '',
-    inputSchema: { type: 'object', ...t.parameters },
+    inputSchema: {
+      type: 'object',
+      properties: t.parameters || {},
+    },
   }));
   log('Loaded ' + tools.length + ' tools');
 } catch (err) {
