@@ -384,14 +384,25 @@ try {
   }
 
   const rawTools = JSON.parse(readFileSync(toolsPath, 'utf-8'));
-  tools = rawTools.map(t => ({
-    name: t.name,
-    description: t.description || '',
-    inputSchema: {
-      type: 'object',
-      properties: t.parameters || {},
-    },
-  }));
+  tools = rawTools.map(t => {
+    const params = t.parameters || {};
+    const properties = {};
+    const required = [];
+    for (const [key, val] of Object.entries(params)) {
+      const { required: isReq, ...rest } = val;
+      properties[key] = rest;
+      if (isReq) required.push(key);
+    }
+    return {
+      name: t.name,
+      description: t.description || '',
+      inputSchema: {
+        type: 'object',
+        properties,
+        ...(required.length > 0 ? { required } : {}),
+      },
+    };
+  });
   log('Loaded ' + tools.length + ' tools');
 } catch (err) {
   log('FATAL init error: ' + (err.message || String(err)));
