@@ -315,12 +315,18 @@ export async function createSandbox(config: SandboxConfig): Promise<SandboxInsta
   if (config.runToken) {
     env.AGENT_PLANE_RUN_TOKEN = config.runToken;
   }
-  if (config.mcpServers && Object.keys(config.mcpServers).length > 0) {
-    env.MCP_SERVERS_JSON = JSON.stringify(config.mcpServers);
-  }
+  // Build MCP servers config — inject agentco bridge alongside other servers
+  const mcpServersForRunner: Record<string, unknown> = { ...config.mcpServers };
   if (config.callbackData && config.callbackData.tools.length > 0) {
+    mcpServersForRunner['agentco'] = {
+      command: 'node',
+      args: ['/vercel/sandbox/agentco-bridge.mjs'],
+    };
     env.AGENTCO_CALLBACK_URL = config.callbackData.url;
     env.AGENTCO_CALLBACK_TOKEN = config.callbackData.token;
+  }
+  if (Object.keys(mcpServersForRunner).length > 0) {
+    env.MCP_SERVERS_JSON = JSON.stringify(mcpServersForRunner);
   }
 
   // Start the runner in detached mode
@@ -360,17 +366,6 @@ export async function createSandbox(config: SandboxConfig): Promise<SandboxInsta
  * Reads config from env vars (AGENTCO_CALLBACK_URL, AGENTCO_CALLBACK_TOKEN)
  * and tool schemas from agentco-tools.json.
  */
-/** JS snippet injected into runner scripts to register the AgentCo bridge as an MCP server. */
-const AGENTCO_BRIDGE_REGISTRATION = `
-// Register AgentCo callback bridge as stdio MCP server
-if (process.env.AGENTCO_CALLBACK_URL) {
-  mcpServers['agentco'] = {
-    command: 'node',
-    args: ['/vercel/sandbox/agentco-bridge.mjs'],
-  };
-}
-`;
-
 function buildBridgeScript(): string {
   return `import { createInterface } from 'readline';
 import { readFileSync, existsSync } from 'fs';
@@ -603,7 +598,7 @@ const runToken = process.env.AGENT_PLANE_RUN_TOKEN;
 const mcpServers = process.env.MCP_SERVERS_JSON
   ? JSON.parse(process.env.MCP_SERVERS_JSON)
   : {};
-${AGENTCO_BRIDGE_REGISTRATION}
+
 const transcriptPath = '/vercel/sandbox/transcript.ndjson';
 writeFileSync(transcriptPath, '');
 
@@ -959,7 +954,7 @@ const sdkSessionId = ${JSON.stringify(config.sdkSessionId)};
 const mcpServers = process.env.MCP_SERVERS_JSON
   ? JSON.parse(process.env.MCP_SERVERS_JSON)
   : {};
-${AGENTCO_BRIDGE_REGISTRATION}
+
 const transcriptPath = '/vercel/sandbox/transcript.ndjson';
 writeFileSync(transcriptPath, '');
 
