@@ -21,7 +21,7 @@ export function parseResultEvent(line: string): {
         status,
         updates: {
           result_summary: event.subtype,
-          cost_usd: event.total_cost_usd,
+          cost_usd: event.total_cost_usd ?? null,
           num_turns: event.num_turns,
           duration_ms: event.duration_ms,
           duration_api_ms: event.duration_api_ms,
@@ -30,6 +30,8 @@ export function parseResultEvent(line: string): {
           cache_read_tokens: event.usage?.cache_read_input_tokens,
           cache_creation_tokens: event.usage?.cache_creation_input_tokens,
           model_usage: event.modelUsage,
+          runner: event.runner ?? null,
+          generation_id: event.generation_id ?? null,
         },
       };
     }

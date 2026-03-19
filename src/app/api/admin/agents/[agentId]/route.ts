@@ -72,6 +72,7 @@ export const PATCH = withErrorHandler(async (request: NextRequest, context) => {
     ["slug", "slug"],
     ["description", "description"],
     ["model", "model"],
+    ["runner", "runner"],
     ["permission_mode", "permission_mode"],
     ["max_turns", "max_turns"],
     ["max_budget_usd", "max_budget_usd"],

@@ -5,6 +5,7 @@ import type { McpServerConfig, CallbackData } from "./mcp";
 import { resolveEffectiveRunner } from "./models";
 import type { RunnerType } from "./models";
 import { buildVercelAiRunnerScript } from "./runners/vercel-ai-runner";
+import { buildVercelAiSessionRunnerScript } from "./runners/vercel-ai-session-runner";
 
 // --- SDK Snapshot Cache ---
 // Pre-built snapshot with @anthropic-ai/claude-agent-sdk installed.
@@ -901,16 +902,28 @@ function buildSessionSandboxInstance(
       currentMcpErrors = errors;
     },
     runMessage: async (opts) => {
-      const runnerScript = buildSessionRunnerScript({
-        agent: config.agent,
-        prompt: opts.prompt,
-        sdkSessionId: opts.sdkSessionId,
-        maxTurns: opts.maxTurns,
-        maxBudgetUsd: opts.maxBudgetUsd,
-        hasSkillsOrPlugins: hasSkills || hasPluginContent,
-        hasMcp: currentHasMcp,
-        mcpErrors: currentMcpErrors,
-      });
+      const effectiveRunner = resolveEffectiveRunner(config.agent.model, config.agent.runner);
+      const runnerScript = effectiveRunner === "vercel-ai-sdk"
+        ? buildVercelAiSessionRunnerScript({
+            agent: config.agent,
+            prompt: opts.prompt,
+            maxTurns: opts.maxTurns,
+            maxBudgetUsd: opts.maxBudgetUsd,
+            hasSkillsOrPlugins: hasSkills || hasPluginContent,
+            hasMcp: currentHasMcp,
+            mcpErrors: currentMcpErrors,
+            pluginFiles: config.pluginFiles,
+          })
+        : buildSessionRunnerScript({
+            agent: config.agent,
+            prompt: opts.prompt,
+            sdkSessionId: opts.sdkSessionId,
+            maxTurns: opts.maxTurns,
+            maxBudgetUsd: opts.maxBudgetUsd,
+            hasSkillsOrPlugins: hasSkills || hasPluginContent,
+            hasMcp: currentHasMcp,
+            mcpErrors: currentMcpErrors,
+          });
 
       const runnerFilename = `runner-${opts.runId}.mjs`;
       await sandbox.writeFiles([
