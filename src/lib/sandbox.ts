@@ -373,18 +373,33 @@ if (process.env.AGENTCO_CALLBACK_URL) {
 
 function buildBridgeScript(): string {
   return `import { createInterface } from 'readline';
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 
-const callbackUrl = process.env.AGENTCO_CALLBACK_URL;
-const callbackToken = process.env.AGENTCO_CALLBACK_TOKEN;
+function log(msg) { process.stderr.write('[agentco-bridge] ' + msg + '\\n'); }
 
-// Load tool schemas from file (written by sandbox setup)
-const rawTools = JSON.parse(readFileSync('/vercel/sandbox/agentco-tools.json', 'utf-8'));
-const tools = rawTools.map(t => ({
-  name: t.name,
-  description: t.description || '',
-  inputSchema: { type: 'object', ...t.parameters },
-}));
+let callbackUrl, callbackToken, tools;
+try {
+  callbackUrl = process.env.AGENTCO_CALLBACK_URL;
+  callbackToken = process.env.AGENTCO_CALLBACK_TOKEN;
+  log('Starting. callback_url=' + (callbackUrl || 'MISSING'));
+
+  const toolsPath = '/vercel/sandbox/agentco-tools.json';
+  if (!existsSync(toolsPath)) {
+    log('ERROR: tools file not found at ' + toolsPath);
+    process.exit(1);
+  }
+
+  const rawTools = JSON.parse(readFileSync(toolsPath, 'utf-8'));
+  tools = rawTools.map(t => ({
+    name: t.name,
+    description: t.description || '',
+    inputSchema: { type: 'object', ...t.parameters },
+  }));
+  log('Loaded ' + tools.length + ' tools');
+} catch (err) {
+  log('FATAL init error: ' + (err.message || String(err)));
+  process.exit(1);
+}
 
 const rl = createInterface({ input: process.stdin, terminal: false });
 
@@ -497,10 +512,12 @@ rl.on('line', async (line) => {
   try {
     msg = JSON.parse(line);
   } catch {
-    return; // Ignore malformed input
+    log('Malformed input: ' + line.slice(0, 100));
+    return;
   }
 
   const { id, method, params } = msg;
+  log('Received: ' + method + (id ? ' id=' + id : ''));
 
   switch (method) {
     case 'initialize':
@@ -599,6 +616,7 @@ async function main() {
     model: config.model,
     timestamp: new Date().toISOString(),
     mcp_server_count: Object.keys(mcpServers).length,
+    mcp_server_names: Object.keys(mcpServers),
     mcp_errors: ${JSON.stringify(config.mcpErrors || [])},
   });
 
@@ -615,6 +633,10 @@ async function main() {
     };
 
     for await (const message of query({ prompt, options })) {
+      // Log MCP server connection status from init event
+      if (message.type === 'system' && message.subtype === 'init' && message.mcp_servers) {
+        emit({ type: 'mcp_status', servers: message.mcp_servers });
+      }
       if (message.type === 'stream_event') {
         const ev = message.event;
         if (ev.type === 'content_block_delta' && ev.delta?.type === 'text_delta') {
