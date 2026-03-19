@@ -20,6 +20,7 @@ import {
 import { getHttpClient } from "@/db";
 import { createRun, getRun, transitionRunStatus } from "@/lib/runs";
 import { prepareRunExecution, finalizeRun } from "@/lib/run-executor";
+import type { CallbackData } from "@/lib/mcp";
 import { reconnectSandbox } from "@/lib/sandbox";
 import { logger } from "@/lib/logger";
 import type { RunStatus, TenantId, AgentId, RunId } from "@/lib/types";
@@ -519,7 +520,7 @@ export class SandboxAgentExecutor implements AgentExecutor {
         callbackData: cb ? {
           url: callbackUrl!,
           token: cb.callback_token as string,
-          tools: cb.available_tools as Array<{ name: string; description: string; parameters: Record<string, unknown> }>,
+          tools: cb.available_tools as CallbackData["tools"],
         } : undefined,
       });
 

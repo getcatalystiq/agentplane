@@ -14,6 +14,13 @@ export type McpServerConfig =
   | { type: "http" | "sse"; url: string; headers?: Record<string, string> }
   | { type: "stdio"; command: string; args: string[]; env?: Record<string, string> };
 
+/** Callback credentials from an A2A dispatch, used to inject the MCP bridge. */
+export interface CallbackData {
+  url: string;
+  token: string;
+  tools: Array<{ name: string; description: string; parameters: Record<string, unknown> }>;
+}
+
 export interface McpBuildResult {
   servers: Record<string, McpServerConfig>;
   errors: string[];

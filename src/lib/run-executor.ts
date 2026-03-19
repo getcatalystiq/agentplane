@@ -1,5 +1,5 @@
 import { createSandbox, type SandboxInstance } from "@/lib/sandbox";
-import { buildMcpConfig } from "@/lib/mcp";
+import { buildMcpConfig, type CallbackData } from "@/lib/mcp";
 import { fetchPluginContent } from "@/lib/plugins";
 import { transitionRunStatus } from "@/lib/runs";
 import { uploadTranscript } from "@/lib/transcripts";
@@ -22,7 +22,7 @@ export interface RunExecutionParams {
   /** Additional hostnames to allow in the sandbox network policy (e.g. A2A callback URLs). */
   extraAllowedHostnames?: string[];
   /** AgentCo callback data for MCP bridge injection. */
-  callbackData?: { url: string; token: string; tools: Array<{ name: string; description: string; parameters: Record<string, unknown> }> };
+  callbackData?: CallbackData;
 }
 
 export interface RunExecutionResult {

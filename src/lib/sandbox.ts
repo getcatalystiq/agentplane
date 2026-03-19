@@ -1,7 +1,7 @@
 import path from "path";
 import { Sandbox, Snapshot, type Command } from "@vercel/sandbox";
 import { logger } from "./logger";
-import type { McpServerConfig } from "./mcp";
+import type { McpServerConfig, CallbackData } from "./mcp";
 
 // --- SDK Snapshot Cache ---
 // Pre-built snapshot with @anthropic-ai/claude-agent-sdk installed.
@@ -138,7 +138,7 @@ export interface SandboxConfig {
   /** Additional hostnames to allow in the sandbox network policy (e.g. A2A callback URLs). */
   extraAllowedHostnames?: string[];
   /** AgentCo callback data for MCP bridge injection. */
-  callbackData?: { url: string; token: string; tools: Array<{ name: string; description: string; parameters: Record<string, unknown> }> };
+  callbackData?: CallbackData;
 }
 
 export interface SandboxInstance {
@@ -358,6 +358,22 @@ export async function createSandbox(config: SandboxConfig): Promise<SandboxInsta
  * Reads config from env vars (AGENTCO_CALLBACK_URL, AGENTCO_CALLBACK_TOKEN)
  * and tool schemas from agentco-tools.json.
  */
+/** JS snippet injected into runner scripts to register the AgentCo bridge as an MCP server. */
+const AGENTCO_BRIDGE_REGISTRATION = `
+// Register AgentCo callback bridge as stdio MCP server
+if (process.env.AGENTCO_CALLBACK_URL) {
+  mcpServers['agentco'] = {
+    type: 'stdio',
+    command: 'node',
+    args: ['agentco-bridge.mjs'],
+    env: {
+      AGENTCO_CALLBACK_URL: process.env.AGENTCO_CALLBACK_URL,
+      AGENTCO_CALLBACK_TOKEN: process.env.AGENTCO_CALLBACK_TOKEN || '',
+    },
+  };
+}
+`;
+
 function buildBridgeScript(): string {
   return `import { createInterface } from 'readline';
 import { readFileSync } from 'fs';
@@ -366,7 +382,7 @@ const callbackUrl = process.env.AGENTCO_CALLBACK_URL;
 const callbackToken = process.env.AGENTCO_CALLBACK_TOKEN;
 
 // Load tool schemas from file (written by sandbox setup)
-const rawTools = JSON.parse(readFileSync('agentco-tools.json', 'utf-8'));
+const rawTools = JSON.parse(readFileSync('/vercel/sandbox/agentco-tools.json', 'utf-8'));
 const tools = rawTools.map(t => ({
   name: t.name,
   description: t.description || '',
@@ -465,9 +481,9 @@ async function handleToolCall(id, params) {
       }
     }
 
-    // Fallback: stringify the whole result
+    // Fallback: stringify the whole result, or report empty
     if (!text) {
-      text = JSON.stringify(result, null, 2);
+      text = result != null ? JSON.stringify(result, null, 2) : '(empty response from AgentCo)';
     }
 
     sendResult(id, { content: [{ type: 'text', text }] });
@@ -568,20 +584,7 @@ const runToken = process.env.AGENT_PLANE_RUN_TOKEN;
 const mcpServers = process.env.MCP_SERVERS_JSON
   ? JSON.parse(process.env.MCP_SERVERS_JSON)
   : {};
-
-// Register AgentCo callback bridge as stdio MCP server
-if (process.env.AGENTCO_CALLBACK_URL) {
-  mcpServers['agentco'] = {
-    type: 'stdio',
-    command: 'node',
-    args: ['agentco-bridge.mjs'],
-    env: {
-      AGENTCO_CALLBACK_URL: process.env.AGENTCO_CALLBACK_URL,
-      AGENTCO_CALLBACK_TOKEN: process.env.AGENTCO_CALLBACK_TOKEN || '',
-    },
-  };
-}
-
+${AGENTCO_BRIDGE_REGISTRATION}
 const transcriptPath = '/vercel/sandbox/transcript.ndjson';
 writeFileSync(transcriptPath, '');
 
@@ -932,20 +935,7 @@ const sdkSessionId = ${JSON.stringify(config.sdkSessionId)};
 const mcpServers = process.env.MCP_SERVERS_JSON
   ? JSON.parse(process.env.MCP_SERVERS_JSON)
   : {};
-
-// Register AgentCo callback bridge as stdio MCP server
-if (process.env.AGENTCO_CALLBACK_URL) {
-  mcpServers['agentco'] = {
-    type: 'stdio',
-    command: 'node',
-    args: ['agentco-bridge.mjs'],
-    env: {
-      AGENTCO_CALLBACK_URL: process.env.AGENTCO_CALLBACK_URL,
-      AGENTCO_CALLBACK_TOKEN: process.env.AGENTCO_CALLBACK_TOKEN || '',
-    },
-  };
-}
-
+${AGENTCO_BRIDGE_REGISTRATION}
 const transcriptPath = '/vercel/sandbox/transcript.ndjson';
 writeFileSync(transcriptPath, '');
 
