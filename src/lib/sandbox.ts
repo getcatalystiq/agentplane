@@ -365,9 +365,8 @@ const AGENTCO_BRIDGE_REGISTRATION = `
 // Register AgentCo callback bridge as stdio MCP server
 if (process.env.AGENTCO_CALLBACK_URL) {
   mcpServers['agentco'] = {
-    type: 'stdio',
     command: 'node',
-    args: ['agentco-bridge.mjs'],
+    args: ['/vercel/sandbox/agentco-bridge.mjs'],
     env: {
       AGENTCO_CALLBACK_URL: process.env.AGENTCO_CALLBACK_URL,
       AGENTCO_CALLBACK_TOKEN: process.env.AGENTCO_CALLBACK_TOKEN || '',
