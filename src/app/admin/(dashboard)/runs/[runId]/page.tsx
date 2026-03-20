@@ -26,6 +26,12 @@ export default async function RunDetailPage({
   const run = await queryOne(RunRow, "SELECT * FROM runs WHERE id = $1", [runId]);
   if (!run) notFound();
 
+  const agentModel = await queryOne(
+    z.object({ model: z.string() }),
+    "SELECT model FROM agents WHERE id = $1",
+    [run.agent_id],
+  );
+
   // For A2A runs, resolve the requesting API key name
   let requestedByKeyName: string | null = null;
   if (run.triggered_by === "a2a" && run.created_by_key_id) {
@@ -93,10 +99,13 @@ export default async function RunDetailPage({
             <p className="text-xs text-muted-foreground mt-0.5 font-normal">{run.status}</p>
           </MetricCard>
         )}
-        <MetricCard label="Runner">
-          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${run.runner === "vercel-ai-sdk" ? "bg-blue-500/10 text-blue-400" : "bg-orange-500/10 text-orange-400"}`}>
-            {run.runner === "vercel-ai-sdk" ? "AI SDK" : "Claude SDK"}
-          </span>
+        <MetricCard label="Model">
+          <span className="font-mono text-xs">{agentModel?.model || "—"}</span>
+          <p className="text-xs text-muted-foreground mt-0.5 font-normal">
+            <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${run.runner === "vercel-ai-sdk" ? "bg-blue-500/10 text-blue-400" : "bg-orange-500/10 text-orange-400"}`}>
+              {run.runner === "vercel-ai-sdk" ? "AI SDK" : "Claude SDK"}
+            </span>
+          </p>
         </MetricCard>
         <MetricCard label="Cost"><span className="font-mono">${run.cost_usd != null ? run.cost_usd.toFixed(4) : "—"}</span></MetricCard>
         <MetricCard label="Turns">{run.num_turns}</MetricCard>
