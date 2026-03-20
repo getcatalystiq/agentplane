@@ -1,3 +1,5 @@
+export type { RunnerType } from "./models";
+
 // Branded types to prevent parameter swaps at compile time
 export type TenantId = string & { readonly __brand: "TenantId" };
 export type AgentId = string & { readonly __brand: "AgentId" };

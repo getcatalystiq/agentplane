@@ -1,5 +1,10 @@
 import { z } from "zod";
 import { isValidTimezone } from "@/lib/schedule";
+import { supportsClaudeRunner, resolveEffectiveRunner, isPermissionModeAllowed } from "@/lib/models";
+
+// --- Runner Validation ---
+
+export const RunnerTypeSchema = z.enum(["claude-agent-sdk", "vercel-ai-sdk"]);
 
 // --- Skills Validation ---
 
@@ -229,7 +234,10 @@ export const CreateAgentSchema = z.object({
   composio_allowed_tools: z.array(z.string().min(1).max(100)).default([]),
   skills: SkillsSchema.default([]),
   plugins: AgentPluginsSchema.default([]),
-  model: z.string().min(1).max(100).default("claude-sonnet-4-6"),
+  model: z.string().min(1).max(100)
+    .regex(/^[a-z0-9-]+(?:\/[a-z0-9._:-]{1,80})?$/, "Model ID must be lowercase alphanumeric, optionally with provider/ prefix")
+    .default("claude-sonnet-4-6"),
+  runner: RunnerTypeSchema.nullable().default(null),
   allowed_tools: z
     .array(z.string().min(1).max(100))
     .default(["Read", "Edit", "Write", "Glob", "Grep", "Bash", "WebSearch"]),
@@ -240,7 +248,18 @@ export const CreateAgentSchema = z.object({
   max_budget_usd: z.number().min(0.01).max(100.0).default(1.0),
   max_runtime_seconds: z.number().int().min(60).max(3600).default(600),
   a2a_enabled: z.boolean().default(false),
-});
+}).refine(
+  (data) => {
+    if (data.runner === "claude-agent-sdk" && !supportsClaudeRunner(data.model)) {
+      return false;
+    }
+    return true;
+  },
+  { message: "Claude Agent SDK runner only supports Anthropic models" },
+).refine(
+  (data) => isPermissionModeAllowed(resolveEffectiveRunner(data.model, data.runner), data.permission_mode),
+  { message: "Vercel AI SDK runner does not support permission modes other than 'default' and 'bypassPermissions'" },
+);
 
 // Strip defaults before .partial() so omitted fields stay undefined (not default values)
 export const UpdateAgentSchema = z.object({
@@ -252,7 +271,9 @@ export const UpdateAgentSchema = z.object({
   composio_allowed_tools: z.array(z.string().min(1).max(100)),
   skills: SkillsSchema,
   plugins: AgentPluginsSchema,
-  model: z.string().min(1).max(100),
+  model: z.string().min(1).max(100)
+    .regex(/^[a-z0-9-]+(?:\/[a-z0-9._:-]{1,80})?$/, "Model ID must be lowercase alphanumeric, optionally with provider/ prefix"),
+  runner: RunnerTypeSchema.nullable(),
   allowed_tools: z.array(z.string().min(1).max(100)),
   permission_mode: z.enum(["default", "acceptEdits", "bypassPermissions", "plan"]),
   max_turns: z.number().int().min(1).max(1000),
@@ -342,6 +363,7 @@ export const AgentRow = z.object({
   skills: z.array(AgentSkillSchema).default([]).catch([]),
   plugins: z.array(AgentPluginSchema).default([]).catch([]),
   model: z.string(),
+  runner: RunnerTypeSchema.nullable().default(null),
   allowed_tools: z.array(z.string()),
   permission_mode: z.enum(["default", "acceptEdits", "bypassPermissions", "plan"]),
   max_turns: z.coerce.number(),
@@ -480,11 +502,12 @@ export const RunRow = z.object({
   total_output_tokens: z.coerce.number(),
   cache_read_tokens: z.coerce.number(),
   cache_creation_tokens: z.coerce.number(),
-  cost_usd: z.coerce.number(),
+  cost_usd: z.coerce.number().nullable(),
   num_turns: z.coerce.number(),
   duration_ms: z.coerce.number(),
   duration_api_ms: z.coerce.number(),
   model_usage: z.unknown().nullable(),
+  runner: RunnerTypeSchema.nullable().default("claude-agent-sdk"),
   transcript_blob_url: z.string().nullable(),
   error_type: z.string().nullable(),
   error_messages: z.array(z.string()),

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { queryOne, query, execute, getPool } from "@/db";
 import { AgentRow, RunRow, UpdateAgentSchema } from "@/lib/validation";
 import { removeToolkitConnections } from "@/lib/composio";
+import { resolveEffectiveRunner, isPermissionModeAllowed } from "@/lib/models";
 import { withErrorHandler } from "@/lib/api";
 import { z } from "zod";
 
@@ -59,6 +60,20 @@ export const PATCH = withErrorHandler(async (request: NextRequest, context) => {
   const params: unknown[] = [];
   let idx = 1;
 
+  // Reject permission_mode incompatible with Vercel AI SDK runner
+  // Check whenever model, runner, OR permission_mode changes (prevents two-step bypass)
+  if (input.permission_mode !== undefined || input.model !== undefined || input.runner !== undefined) {
+    const effectiveModel = input.model ?? current.model;
+    const effectiveRunner = resolveEffectiveRunner(effectiveModel, input.runner !== undefined ? input.runner : current.runner);
+    const effectivePermission = input.permission_mode ?? current.permission_mode;
+    if (!isPermissionModeAllowed(effectiveRunner, effectivePermission)) {
+      return NextResponse.json(
+        { error: { message: "Vercel AI SDK runner does not support permission modes other than 'default' and 'bypassPermissions'" } },
+        { status: 400 },
+      );
+    }
+  }
+
   // Block slug changes when a2a_enabled is true (slug is used in permanent A2A URLs)
   if (input.slug !== undefined && current.a2a_enabled) {
     return NextResponse.json(
@@ -72,6 +87,7 @@ export const PATCH = withErrorHandler(async (request: NextRequest, context) => {
     ["slug", "slug"],
     ["description", "description"],
     ["model", "model"],
+    ["runner", "runner"],
     ["permission_mode", "permission_mode"],
     ["max_turns", "max_turns"],
     ["max_budget_usd", "max_budget_usd"],

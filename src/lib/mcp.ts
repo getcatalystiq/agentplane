@@ -7,6 +7,7 @@ import {
   getOrRefreshToken,
   markConnectionFailed,
 } from "./mcp-connections";
+import { validatePublicUrl } from "./mcp-oauth";
 import type { AgentInternal } from "./validation";
 import type { AgentId, TenantId, McpServerId, McpConnectionId } from "./types";
 
@@ -96,14 +97,19 @@ export async function buildMcpConfig(
       const mcpServers = await getMcpServersByIds(serverIds);
       const serverMap = new Map(mcpServers.map((s) => [s.id, s]));
 
-      // Refresh all MCP tokens in parallel for faster cold starts
+      // Refresh tokens + validate URLs in parallel for faster cold starts
       const tokenResults = await Promise.allSettled(
         connections.map(async (conn) => {
           const server = serverMap.get(conn.mcp_server_id);
           if (!server) return null;
           try {
-            const accessToken = await getOrRefreshToken(conn, tenantId as TenantId);
-            return { conn, server, accessToken };
+            const mcpUrl = new URL(server.mcp_endpoint_path, server.base_url).toString();
+            // Run token refresh and URL validation in parallel
+            const [accessToken] = await Promise.all([
+              getOrRefreshToken(conn, tenantId as TenantId),
+              validatePublicUrl(mcpUrl),
+            ]);
+            return { conn, server, accessToken, mcpUrl };
           } catch (err) {
             // Re-throw with connection context so we can mark it failed
             throw { conn, server, error: err };
@@ -113,8 +119,7 @@ export async function buildMcpConfig(
 
       for (const result of tokenResults) {
         if (result.status === "fulfilled" && result.value) {
-          const { server, accessToken } = result.value;
-          const mcpUrl = new URL(server.mcp_endpoint_path, server.base_url).toString();
+          const { server, accessToken, mcpUrl } = result.value;
           servers[server.slug] = {
             type: "http",
             url: mcpUrl,
