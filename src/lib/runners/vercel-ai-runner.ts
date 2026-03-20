@@ -134,7 +134,7 @@ const maxTurns = ${config.agent.max_turns || 10};
 const systemPrompt = ${JSON.stringify(systemPrompt)};
 
 ${buildPreamble()}
-${buildToolDefinitions(JSON.stringify(skillRegistry), { includeCompleteTask: true })}
+${buildToolDefinitions(JSON.stringify(skillRegistry))}
 ${buildMcpSetup(JSON.stringify(mcpErrors))}
 
 // --- Main execution ---

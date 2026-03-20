@@ -53,23 +53,10 @@ function truncateToolResult(result) {
  * Returns the builtinTools object as a code string.
  *
  * @param skillRegistryJson - JSON.stringify'd skill registry array
- * @param opts.includeCompleteTask - one-shot runner includes sandbox__complete_task
  */
 export function buildToolDefinitions(
   skillRegistryJson: string,
-  opts?: { includeCompleteTask?: boolean },
 ): string {
-  const completeTaskTool = opts?.includeCompleteTask
-    ? `
-  sandbox__complete_task: {
-    description: 'Call this when you have completed the task. Provide the final result summary.',
-    parameters: z.object({ result: z.string().describe('Final result summary') }),
-    execute: async ({ result }) => {
-      emit({ type: 'assistant', content: [{ type: 'text', text: result }] });
-      return 'Task marked complete.';
-    }
-  },`
-    : "";
 
   // Note: execSync is used deliberately — Vercel Sandbox provides security
   return `
@@ -161,7 +148,15 @@ const builtinTools = {
         return 'Error: ' + e.message;
       }
     }
-  },${completeTaskTool}
+  },
+  sandbox__complete_task: {
+    description: 'Call this when you have completed the task. Provide the final result summary.',
+    parameters: z.object({ result: z.string().describe('Final result summary') }),
+    execute: async ({ result }) => {
+      emit({ type: 'assistant', content: [{ type: 'text', text: result }] });
+      return 'Task marked complete.';
+    }
+  },
 };
 `;
 }
@@ -224,7 +219,7 @@ const configuredMcpErrors = ${mcpErrorsJson};
  * Stream consumption + result event emission.
  * Handles textStream iteration, assistant event, and result/error events.
  *
- * @param mode - 'oneshot' includes tool-use error detection; 'session' includes history update
+ * @param mode - 'session' includes history update after response
  */
 export function buildStreamHandling(mode: "oneshot" | "session"): string {
   const historyUpdate = mode === "session"
@@ -240,19 +235,6 @@ export function buildStreamHandling(mode: "oneshot" | "session"): string {
     saveHistory(history);
 `
     : "";
-
-  const errorHandler = mode === "oneshot"
-    ? `
-    const msg = error instanceof Error ? error.message : String(error);
-    if (msg.includes('does not support tools') || msg.includes('tool_use is not supported') || msg.includes('does not support function')) {
-      emit({ type: 'error', code: 'tool_use_not_supported', error: 'Model ' + modelId + ' does not support tool use. Try a model that supports function calling.' });
-    } else {
-      emit({ type: 'error', code: 'execution_error', error: msg.slice(0, 500) });
-    }
-`
-    : `
-    emit({ type: 'error', code: 'execution_error', error: error.message });
-`;
 
   return `
     // Stream text (provider-agnostic)
@@ -297,7 +279,12 @@ ${historyUpdate}
       generation_id: generationId,
     });
   } catch (error) {
-${errorHandler}
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg.includes('does not support tools') || msg.includes('tool_use is not supported') || msg.includes('does not support function')) {
+      emit({ type: 'error', code: 'tool_use_not_supported', error: 'Model ' + modelId + ' does not support tool use. Try a model that supports function calling.' });
+    } else {
+      emit({ type: 'error', code: 'execution_error', error: msg.slice(0, 500) });
+    }
   } finally {
     for (const client of mcpClients) {
       try { await client.close(); } catch {}
