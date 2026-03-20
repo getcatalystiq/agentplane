@@ -102,7 +102,7 @@ describe("finalizeSessionMessage", () => {
     vi.mocked(incrementMessageCount).mockResolvedValue(undefined);
     vi.mocked(uploadTranscript).mockResolvedValue("https://blob.test/t.ndjson");
     vi.mocked(backupSessionFile).mockResolvedValue("https://blob.test/s.jsonl");
-    vi.mocked(parseResultEvent).mockReturnValue({
+    vi.mocked(parseResultEvent).mockResolvedValue({
       status: "completed",
       updates: { result_summary: "success", cost_usd: 0.01 },
     });

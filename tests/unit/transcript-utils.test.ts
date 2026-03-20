@@ -8,6 +8,10 @@ vi.mock("@/lib/logger", () => ({
   logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
+vi.mock("@/lib/model-catalog", () => ({
+  listCatalogModels: vi.fn(async () => []),
+}));
+
 import { parseResultEvent, captureTranscript } from "@/lib/transcript-utils";
 import type { RunId, TenantId } from "@/lib/types";
 
@@ -29,7 +33,7 @@ async function collectAll(gen: AsyncGenerator<string>): Promise<string[]> {
 // ── parseResultEvent ─────────────────────────────────────────────────────
 
 describe("parseResultEvent", () => {
-  it("parses a success result event", () => {
+  it("parses a success result event", async () => {
     const line = JSON.stringify({
       type: "result",
       subtype: "success",
@@ -46,7 +50,7 @@ describe("parseResultEvent", () => {
       modelUsage: { "claude-sonnet-4-6": { inputTokens: 100 } },
     });
 
-    const result = parseResultEvent(line);
+    const result = await parseResultEvent(line);
     expect(result).not.toBeNull();
     expect(result!.status).toBe("completed");
     expect(result!.updates.cost_usd).toBe(0.05);
@@ -56,26 +60,26 @@ describe("parseResultEvent", () => {
     expect(result!.updates.model_usage).toEqual({ "claude-sonnet-4-6": { inputTokens: 100 } });
   });
 
-  it("parses a failed result event", () => {
+  it("parses a failed result event", async () => {
     const line = JSON.stringify({ type: "result", subtype: "error" });
-    const result = parseResultEvent(line);
+    const result = await parseResultEvent(line);
     expect(result!.status).toBe("failed");
   });
 
-  it("parses an error event", () => {
+  it("parses an error event", async () => {
     const line = JSON.stringify({ type: "error", code: "timeout", error: "Run timed out" });
-    const result = parseResultEvent(line);
+    const result = await parseResultEvent(line);
     expect(result!.status).toBe("failed");
     expect(result!.updates.error_type).toBe("timeout");
     expect(result!.updates.error_messages).toEqual(["Run timed out"]);
   });
 
-  it("returns null for non-result events", () => {
-    expect(parseResultEvent(JSON.stringify({ type: "assistant" }))).toBeNull();
+  it("returns null for non-result events", async () => {
+    expect(await parseResultEvent(JSON.stringify({ type: "assistant" }))).toBeNull();
   });
 
-  it("returns null for invalid JSON", () => {
-    expect(parseResultEvent("not json")).toBeNull();
+  it("returns null for invalid JSON", async () => {
+    expect(await parseResultEvent("not json")).toBeNull();
   });
 });
 

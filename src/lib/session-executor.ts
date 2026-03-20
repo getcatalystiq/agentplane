@@ -282,7 +282,7 @@ export async function finalizeSessionMessage(
       const transcript = transcriptChunks.join("\n") + "\n";
       const blobUrl = await uploadTranscript(tenantId, runId, transcript);
       const lastLine = transcriptChunks[transcriptChunks.length - 1];
-      resultData = parseResultEvent(lastLine);
+      resultData = await parseResultEvent(lastLine);
 
       await transitionRunStatus(
         runId,

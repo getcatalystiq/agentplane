@@ -98,7 +98,7 @@ export async function finalizeRun(
       const transcript = transcriptChunks.join("\n") + "\n";
       const blobUrl = await uploadTranscript(tenantId, runId, transcript);
       const lastLine = transcriptChunks[transcriptChunks.length - 1];
-      const resultData = parseResultEvent(lastLine);
+      const resultData = await parseResultEvent(lastLine);
 
       await transitionRunStatus(
         runId,

@@ -1,5 +1,6 @@
 import { processLineAssets } from "./assets";
 import { logger } from "./logger";
+import { listCatalogModels } from "./model-catalog";
 import type { RunId, RunStatus, TenantId } from "./types";
 
 const MAX_TRANSCRIPT_EVENTS = 10_000;
@@ -8,20 +9,37 @@ const MAX_TRANSCRIPT_EVENTS = 10_000;
  * Parse the last NDJSON line of a transcript to extract run result metadata.
  * Shared between run-executor and session-executor.
  */
-export function parseResultEvent(line: string): {
+export async function parseResultEvent(line: string): Promise<{
   status: RunStatus;
   updates: Record<string, unknown>;
-} | null {
+} | null> {
   try {
     const event = JSON.parse(line);
     if (event.type === "result") {
       const status: RunStatus =
         event.subtype === "success" ? "completed" : "failed";
+
+      // Compute cost from token usage + catalog pricing when runner doesn't provide it
+      let costUsd = event.total_cost_usd ?? null;
+      if ((!costUsd || costUsd === 0) && event.usage && event.model) {
+        try {
+          const models = await listCatalogModels();
+          const modelInfo = models.find((m) => m.id === event.model);
+          if (modelInfo?.pricing) {
+            const inputCost = (event.usage.input_tokens || 0) * (modelInfo.pricing.inputPerMillionTokens || 0) / 1_000_000;
+            const outputCost = (event.usage.output_tokens || 0) * (modelInfo.pricing.outputPerMillionTokens || 0) / 1_000_000;
+            costUsd = inputCost + outputCost;
+          }
+        } catch {
+          // Fall back to 0 if catalog lookup fails
+        }
+      }
+
       return {
         status,
         updates: {
           result_summary: event.subtype,
-          cost_usd: event.total_cost_usd ?? null,
+          cost_usd: costUsd ?? 0,
           num_turns: event.num_turns,
           duration_ms: event.duration_ms,
           duration_api_ms: event.duration_api_ms,
