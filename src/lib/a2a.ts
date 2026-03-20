@@ -462,6 +462,8 @@ export class SandboxAgentExecutor implements AgentExecutor {
         data_parts: dataParts.length,
         has_callback: !!cb,
         callback_url: callbackUrl,
+        callback_data_keys: cb ? Object.keys(cb) : [],
+        raw_data_parts: dataParts.map(p => ({ keys: Object.keys(p.data || {}), type: (p.data as Record<string, unknown>)?.type })),
         tool_count: cb?.available_tools ? (cb.available_tools as unknown[]).length : 0,
       });
 
