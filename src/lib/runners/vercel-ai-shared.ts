@@ -202,50 +202,51 @@ const builtinTools = {
  */
 export function buildMcpSetup(mcpErrorsJson: string): string {
   return `
-// --- Dynamic imports ---
-const { createMCPClient } = await import('@ai-sdk/mcp');
-
 // --- MCP tools ---
-const mcpServersJson = process.env.MCP_SERVERS_JSON;
 const mcpClients = [];
 let mcpTools = {};
+const configuredMcpErrors = ${mcpErrorsJson};
 
-if (mcpServersJson) {
-  const servers = JSON.parse(mcpServersJson);
-  const entries = Object.entries(servers);
-  const results = await Promise.allSettled(
-    entries.map(async ([name, cfg]) => {
-      let transport;
-      if (cfg.command) {
-        const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js');
-        transport = new StdioClientTransport({ command: cfg.command, args: cfg.args || [] });
-      } else if (cfg.url) {
-        transport = { type: 'http', url: cfg.url, headers: cfg.headers || {} };
-      } else {
-        throw new Error('MCP server ' + name + ' has no url or command');
-      }
-      const client = await createMCPClient({ transport });
-      mcpClients.push(client);
-      const t = await client.tools();
-      for (const toolName of Object.keys(t)) {
-        if (builtinTools[toolName]) {
-          emit({ type: 'mcp_error', server: name, error: 'Tool name collision: ' + toolName });
-          delete t[toolName];
+try {
+  const mcpServersJson = process.env.MCP_SERVERS_JSON;
+  if (mcpServersJson) {
+    const { createMCPClient } = await import('@ai-sdk/mcp');
+    const servers = JSON.parse(mcpServersJson);
+    const entries = Object.entries(servers);
+    const results = await Promise.allSettled(
+      entries.map(async ([name, cfg]) => {
+        let transport;
+        if (cfg.command) {
+          const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js');
+          transport = new StdioClientTransport({ command: cfg.command, args: cfg.args || [] });
+        } else if (cfg.url) {
+          transport = { type: 'http', url: cfg.url, headers: cfg.headers || {} };
+        } else {
+          throw new Error('MCP server ' + name + ' has no url or command');
         }
+        const client = await createMCPClient({ transport });
+        mcpClients.push(client);
+        const t = await client.tools();
+        for (const toolName of Object.keys(t)) {
+          if (builtinTools[toolName]) {
+            emit({ type: 'mcp_error', server: name, error: 'Tool name collision: ' + toolName });
+            delete t[toolName];
+          }
+        }
+        return t;
+      })
+    );
+    for (let i = 0; i < results.length; i++) {
+      if (results[i].status === 'fulfilled') {
+        mcpTools = { ...mcpTools, ...results[i].value };
+      } else {
+        emit({ type: 'mcp_error', server: entries[i][0], error: results[i].reason?.message || 'Connection failed' });
       }
-      return t;
-    })
-  );
-  for (let i = 0; i < results.length; i++) {
-    if (results[i].status === 'fulfilled') {
-      mcpTools = { ...mcpTools, ...results[i].value };
-    } else {
-      emit({ type: 'mcp_error', server: entries[i][0], error: results[i].reason?.message || 'Connection failed' });
     }
   }
+} catch (mcpErr) {
+  emit({ type: 'mcp_error', server: '__setup__', error: 'MCP setup failed: ' + (mcpErr.message || String(mcpErr)) });
 }
-
-const configuredMcpErrors = ${mcpErrorsJson};
 `;
 }
 
