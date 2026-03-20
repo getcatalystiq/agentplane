@@ -320,13 +320,12 @@ function ToolItem({ item }: { item: ConversationItem }) {
 }
 
 function ResultItem({ item }: { item: ConversationItem }) {
+  if (!item.text) return null;
   return (
     <div className="rounded-md border border-green-500/30 bg-green-500/5 px-4 py-3">
-      {item.text && (
-        <div className="mt-2 text-sm prose prose-sm dark:prose-invert max-w-none">
-          <ReactMarkdown>{item.text}</ReactMarkdown>
-        </div>
-      )}
+      <div className="text-sm prose prose-sm dark:prose-invert max-w-none">
+        <ReactMarkdown>{item.text}</ReactMarkdown>
+      </div>
     </div>
   );
 }
