@@ -39,7 +39,7 @@ export default async function AgentDetailPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-start">
         <AgentHeaderActions agentId={agent.id} tenantId={agent.tenant_id} />
       </div>
 
