@@ -254,13 +254,14 @@ async function main() {
       },
     });
 
-    for await (const chunk of result.fullStream) {
-      if (chunk.type === 'text-delta' && chunk.textDelta) {
-        console.log(JSON.stringify({ type: 'text_delta', text: chunk.textDelta }));
+    // Stream text using textStream (provider-agnostic, yields plain strings)
+    for await (const textPart of result.textStream) {
+      if (textPart) {
+        console.log(JSON.stringify({ type: 'text_delta', text: textPart }));
       }
     }
 
-    // Get full text from AI SDK (works regardless of chunk format)
+    // Get full text after stream completes
     const fullText = await result.text;
 
     // Emit assistant event with full text (mirrors Claude SDK runner format)

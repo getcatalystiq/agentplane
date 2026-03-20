@@ -273,15 +273,15 @@ async function main() {
       },
     });
 
-    // Stream text deltas ONLY — tool events come from onStepFinish
-    for await (const chunk of result.fullStream) {
-      if (chunk.type === 'text-delta' && chunk.textDelta) {
-        // text_delta: streamed to stdout only, NOT written to transcript
-        console.log(JSON.stringify({ type: 'text_delta', text: chunk.textDelta }));
+    // Stream text using textStream (provider-agnostic, yields plain strings)
+    // Tool events come from onStepFinish callback above
+    for await (const textPart of result.textStream) {
+      if (textPart) {
+        console.log(JSON.stringify({ type: 'text_delta', text: textPart }));
       }
     }
 
-    // Get full text from AI SDK (works regardless of chunk format)
+    // Get full text after stream completes
     const fullText = await result.text;
 
     // Emit assistant event with full text (mirrors Claude SDK runner format)
