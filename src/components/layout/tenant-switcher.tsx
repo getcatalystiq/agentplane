@@ -60,7 +60,7 @@ export function TenantSwitcher() {
         });
         if (!res.ok) return;
         const data = await res.json();
-        const list: Tenant[] = Array.isArray(data) ? data : data.tenants ?? [];
+        const list: Tenant[] = Array.isArray(data) ? data : data.data ?? data.tenants ?? [];
         setTenants(list);
 
         // Set active tenant from cookie or default to first
