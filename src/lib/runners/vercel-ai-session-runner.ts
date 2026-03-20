@@ -254,17 +254,20 @@ async function main() {
       },
     });
 
-    let fullText = '';
     for await (const chunk of result.fullStream) {
       if (chunk.type === 'text-delta' && chunk.textDelta) {
-        fullText += chunk.textDelta;
         console.log(JSON.stringify({ type: 'text_delta', text: chunk.textDelta }));
       }
     }
 
+    // Get full text from AI SDK (works regardless of chunk format)
+    const fullText = await result.text;
+
     // Emit assistant event with full text (mirrors Claude SDK runner format)
     if (fullText) {
       emit({ type: 'assistant', message: { content: [{ type: 'text', text: fullText }] } });
+    } else {
+      emit({ type: 'system', message: 'Model returned empty response (no text output)' });
     }
 
     // Append assistant response to history

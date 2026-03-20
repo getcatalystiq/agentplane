@@ -274,18 +274,21 @@ async function main() {
     });
 
     // Stream text deltas ONLY — tool events come from onStepFinish
-    let fullText = '';
     for await (const chunk of result.fullStream) {
       if (chunk.type === 'text-delta' && chunk.textDelta) {
-        fullText += chunk.textDelta;
         // text_delta: streamed to stdout only, NOT written to transcript
         console.log(JSON.stringify({ type: 'text_delta', text: chunk.textDelta }));
       }
     }
 
+    // Get full text from AI SDK (works regardless of chunk format)
+    const fullText = await result.text;
+
     // Emit assistant event with full text (mirrors Claude SDK runner format)
     if (fullText) {
       emit({ type: 'assistant', message: { content: [{ type: 'text', text: fullText }] } });
+    } else {
+      emit({ type: 'system', message: 'Model returned empty response (no text output)' });
     }
 
     const totalUsage = await result.totalUsage;
