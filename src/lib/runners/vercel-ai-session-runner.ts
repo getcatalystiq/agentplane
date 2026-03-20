@@ -50,6 +50,8 @@ import { readFileSync, writeFileSync, appendFileSync, mkdirSync, readdirSync, ex
 import { resolve, dirname } from 'path';
 import { execSync } from 'child_process';
 
+console.log(JSON.stringify({ type: 'system', message: 'Runner script loaded, starting initialization...' }));
+
 const modelId = ${JSON.stringify(config.agent.model)};
 const prompt = ${JSON.stringify(config.prompt)};
 const maxTurns = ${config.maxTurns || 10};
