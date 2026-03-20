@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { MetricCard } from "@/components/ui/metric-card";
-import { RunStatusBadge } from "@/components/ui/run-status-badge";
 import { LocalDate } from "@/components/local-date";
 import { z } from "zod";
 import { queryOne } from "@/db";
@@ -64,12 +63,11 @@ export default async function RunDetailPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <RunStatusBadge status={run.status} />
-        {(run.status === "running" || run.status === "pending") && (
+      {(run.status === "running" || run.status === "pending") && (
+        <div className="flex items-center justify-end">
           <CancelRunButton runId={run.id} />
-        )}
-      </div>
+        </div>
+      )}
 
       {/* A2A request origin */}
       {run.triggered_by === "a2a" && requestedByKeyName && (
