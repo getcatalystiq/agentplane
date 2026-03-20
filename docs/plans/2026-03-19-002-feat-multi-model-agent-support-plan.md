@@ -1,7 +1,7 @@
 ---
 title: "feat: Multi-Model Agent Support via Vercel AI SDK"
 type: feat
-status: active
+status: completed
 date: 2026-03-19
 origin: docs/brainstorms/2026-03-19-multi-model-support-requirements.md
 ---

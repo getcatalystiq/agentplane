@@ -302,7 +302,13 @@ async function main() {
       generation_id: generationId,
     });
   } catch (error) {
-    emit({ type: 'error', code: 'execution_error', error: error.message });
+    const msg = error instanceof Error ? error.message : String(error);
+    // Detect tool-use not supported by the model (match specific provider error patterns)
+    if (msg.includes('does not support tools') || msg.includes('tool_use is not supported') || msg.includes('does not support function')) {
+      emit({ type: 'error', code: 'tool_use_not_supported', error: 'Model ' + model + ' does not support tool use. Try a model that supports function calling.' });
+    } else {
+      emit({ type: 'error', code: 'execution_error', error: msg.slice(0, 500) });
+    }
   } finally {
     // Close MCP clients
     for (const client of mcpClients) {

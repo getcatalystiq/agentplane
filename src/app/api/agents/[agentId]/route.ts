@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { authenticateApiKey } from "@/lib/auth";
 import { withErrorHandler, jsonResponse } from "@/lib/api";
 import { UpdateAgentSchema } from "@/lib/validation";
+import { resolveEffectiveRunner, isPermissionModeAllowed } from "@/lib/models";
 import { execute } from "@/db";
 import { getAgentForTenant } from "@/lib/agents";
 import { logger } from "@/lib/logger";
@@ -19,11 +20,23 @@ export const PUT = withErrorHandler(async (request: NextRequest, context) => {
   const auth = await authenticateApiKey(request.headers.get("authorization"));
   const { agentId } = await context!.params;
 
-  // Verify agent exists
-  await getAgentForTenant(agentId, auth.tenantId);
+  // Verify agent exists and get current values for cross-field validation
+  const current = await getAgentForTenant(agentId, auth.tenantId);
 
   const body = await request.json();
   const input = UpdateAgentSchema.parse(body);
+
+  // Reject permission_mode incompatible with Vercel AI SDK runner
+  // Check whenever model, runner, OR permission_mode changes (prevents two-step bypass)
+  const effectiveModel = input.model ?? current.model;
+  const effectiveRunner = resolveEffectiveRunner(effectiveModel, input.runner !== undefined ? input.runner : current.runner);
+  const effectivePermission = input.permission_mode ?? current.permission_mode;
+  if (!isPermissionModeAllowed(effectiveRunner, effectivePermission)) {
+    return jsonResponse(
+      { error: { message: "Vercel AI SDK runner does not support permission modes other than 'default' and 'bypassPermissions'" } },
+      400,
+    );
+  }
 
   // Build dynamic SET clause from provided fields
   const setClauses: string[] = ["updated_at = NOW()"];

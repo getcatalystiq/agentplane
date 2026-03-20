@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { isValidTimezone } from "@/lib/schedule";
-import { supportsClaudeRunner } from "@/lib/models";
+import { supportsClaudeRunner, resolveEffectiveRunner, isPermissionModeAllowed } from "@/lib/models";
 
 // --- Runner Validation ---
 
@@ -256,6 +256,9 @@ export const CreateAgentSchema = z.object({
     return true;
   },
   { message: "Claude Agent SDK runner only supports Anthropic models" },
+).refine(
+  (data) => isPermissionModeAllowed(resolveEffectiveRunner(data.model, data.runner), data.permission_mode),
+  { message: "Vercel AI SDK runner does not support permission modes other than 'default' and 'bypassPermissions'" },
 );
 
 // Strip defaults before .partial() so omitted fields stay undefined (not default values)

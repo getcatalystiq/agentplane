@@ -38,12 +38,12 @@ export function A2aInfoSection({
     setToggling(true);
     try {
       const next = !enabled;
-      await fetch(`/api/admin/agents/${agentId}`, {
+      const res = await fetch(`/api/admin/agents/${agentId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ a2a_enabled: next }),
       });
-      setEnabled(next);
+      if (res.ok) setEnabled(next);
     } finally {
       setToggling(false);
     }

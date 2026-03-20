@@ -8,6 +8,7 @@ import { Select } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { FormField } from "@/components/ui/form-field";
 import { FormError } from "@/components/ui/form-error";
+import { supportsClaudeRunner } from "@/lib/models";
 
 const MODEL_GROUPS = [
   { provider: "Anthropic", models: [
@@ -30,10 +31,6 @@ const MODEL_GROUPS = [
     { value: "deepseek/deepseek-chat", label: "DeepSeek Chat" },
   ]},
 ];
-
-function isClaudeModel(model: string): boolean {
-  return !model.includes("/") || model.startsWith("anthropic/");
-}
 
 interface Tenant {
   id: string;
@@ -156,7 +153,7 @@ export function AddAgentForm({ tenants, defaultTenantId }: Props) {
                   onChange={(e) => setForm((f) => ({
                     ...f,
                     model: e.target.value,
-                    runner: isClaudeModel(e.target.value) ? f.runner : "vercel-ai-sdk",
+                    runner: supportsClaudeRunner(e.target.value) ? f.runner : "vercel-ai-sdk",
                   }))}
                 >
                   {MODEL_GROUPS.map((g) => (
@@ -170,7 +167,7 @@ export function AddAgentForm({ tenants, defaultTenantId }: Props) {
               </FormField>
               <div className="grid grid-cols-2 gap-3">
                 <FormField label="Runner">
-                  {isClaudeModel(form.model) ? (
+                  {supportsClaudeRunner(form.model) ? (
                     <Select
                       value={form.runner || "claude-agent-sdk"}
                       onChange={(e) => setForm((f) => ({ ...f, runner: e.target.value === "claude-agent-sdk" ? "" : e.target.value }))}
@@ -188,7 +185,7 @@ export function AddAgentForm({ tenants, defaultTenantId }: Props) {
                   <Select
                     value={form.permission_mode}
                     onChange={(e) => setForm((f) => ({ ...f, permission_mode: e.target.value }))}
-                    disabled={!isClaudeModel(form.model) || form.runner === "vercel-ai-sdk"}
+                    disabled={!supportsClaudeRunner(form.model) || form.runner === "vercel-ai-sdk"}
                   >
                     <option value="default">default</option>
                     <option value="acceptEdits">acceptEdits</option>

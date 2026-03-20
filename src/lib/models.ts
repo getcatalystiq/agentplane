@@ -30,28 +30,14 @@ export function resolveEffectiveRunner(
   return defaultRunnerForModel(model);
 }
 
-/** Convenience: true when the effective runner is claude-agent-sdk. */
-export function isClaudeRunner(
-  model: string,
-  agentRunner: RunnerType | null | undefined,
+/** Returns true if the permission mode is compatible with the given runner. */
+export function isPermissionModeAllowed(
+  runner: RunnerType,
+  permissionMode: string,
 ): boolean {
-  return resolveEffectiveRunner(model, agentRunner) === "claude-agent-sdk";
+  if (runner === "vercel-ai-sdk") {
+    return permissionMode === "default" || permissionMode === "bypassPermissions";
+  }
+  return true;
 }
 
-/**
- * Context window sizes (in tokens) for known models.
- * Used by session history truncation (Phase 3).
- */
-export const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
-  "openai/gpt-4o": 128_000,
-  "openai/gpt-4o-mini": 128_000,
-  "openai/o3": 200_000,
-  "google/gemini-2.5-pro": 1_000_000,
-  "google/gemini-2.5-flash": 1_000_000,
-  "mistral/mistral-large": 128_000,
-  "xai/grok-3": 131_072,
-  "deepseek/deepseek-chat": 128_000,
-};
-
-/** Conservative default for unknown models (fail closed). */
-export const DEFAULT_CONTEXT_WINDOW = 16_000;
