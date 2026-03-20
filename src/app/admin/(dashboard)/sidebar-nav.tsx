@@ -20,7 +20,7 @@ function NavLink({ href, label, icon: Icon, active }: { href: string; label: str
       className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors ${
         active
           ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-          : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
       }`}
     >
       <Icon className="size-4 shrink-0" />
