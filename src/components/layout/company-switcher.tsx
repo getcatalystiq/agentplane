@@ -156,7 +156,7 @@ export function CompanySwitcher() {
       <button
         ref={triggerRef}
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-3 w-full h-12 px-4 hover:bg-accent/50 transition-colors"
+        className="flex items-center gap-2 w-full h-12 px-4 hover:bg-accent/50 transition-colors"
         aria-expanded={open}
         aria-haspopup="listbox"
       >
