@@ -13,6 +13,7 @@ const TenantWithStats = z.object({
   name: z.string(),
   slug: z.string(),
   status: z.string(),
+  logo_url: z.string().nullable().default(null),
   monthly_budget_usd: z.coerce.number(),
   current_month_spend: z.coerce.number(),
   created_at: z.coerce.string(),
