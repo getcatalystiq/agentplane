@@ -490,14 +490,6 @@ export function PluginDetailPage({ marketplaceId, pluginName }: PluginDetailPage
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <div className="flex items-center gap-3 mb-1">
-          <LinkComponent
-            href={`${basePath}/plugin-marketplaces/${marketplaceId}`}
-            className="text-muted-foreground hover:text-foreground text-sm"
-          >
-            &larr; Back to marketplace
-          </LinkComponent>
-        </div>
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-semibold">{plugin.displayName}</h1>
           {plugin.version && (
