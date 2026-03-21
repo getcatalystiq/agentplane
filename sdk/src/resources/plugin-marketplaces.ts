@@ -72,7 +72,7 @@ export class PluginMarketplacesResource {
   async getPluginFiles(marketplaceId: string, pluginName: string): Promise<PluginFiles> {
     return this._client._request<PluginFiles>(
       "GET",
-      `/api/admin/plugin-marketplaces/${encodeURIComponent(marketplaceId)}/plugins/${pluginName}`,
+      `/api/plugin-marketplaces/${encodeURIComponent(marketplaceId)}/plugins/${pluginName}?mode=edit`,
     );
   }
 
@@ -84,7 +84,7 @@ export class PluginMarketplacesResource {
   ): Promise<PluginSaveResult> {
     return this._client._request<PluginSaveResult>(
       "PUT",
-      `/api/admin/plugin-marketplaces/${encodeURIComponent(marketplaceId)}/plugins/${pluginName}`,
+      `/api/plugin-marketplaces/${encodeURIComponent(marketplaceId)}/plugins/${pluginName}`,
       { body: data },
     );
   }
