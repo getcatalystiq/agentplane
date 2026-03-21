@@ -30,16 +30,12 @@ interface Plugin {
   hasMcpJson: boolean;
 }
 
-interface PluginsResponse {
-  ok: boolean;
-  data: Plugin[];
-  message?: string;
-}
+type PluginsResult = Plugin[];
 
 export interface PluginMarketplaceDetailPageProps {
   marketplaceId: string;
   initialData?: MarketplaceDetail;
-  initialPlugins?: PluginsResponse;
+  initialPlugins?: PluginsResult;
 }
 
 export function PluginMarketplaceDetailPage({ marketplaceId, initialData, initialPlugins }: PluginMarketplaceDetailPageProps) {
@@ -53,9 +49,9 @@ export function PluginMarketplaceDetailPage({ marketplaceId, initialData, initia
     initialData ? { fallbackData: initialData } : undefined,
   );
 
-  const { data: pluginsResult } = useApi<PluginsResponse>(
+  const { data: plugins } = useApi<PluginsResult>(
     `marketplace-${marketplaceId}-plugins`,
-    (c) => c.pluginMarketplaces.listPlugins(marketplaceId) as unknown as Promise<PluginsResponse>,
+    (c) => c.pluginMarketplaces.listPlugins(marketplaceId) as Promise<PluginsResult>,
     initialPlugins ? { fallbackData: initialPlugins } : undefined,
   );
 
@@ -137,15 +133,13 @@ export function PluginMarketplaceDetailPage({ marketplaceId, initialData, initia
       {/* Plugin list */}
       <div>
         <SectionHeader title="Plugins" />
-        {!pluginsResult ? (
+        {!plugins ? (
           <Skeleton className="h-48 rounded-lg" />
-        ) : !pluginsResult.ok ? (
-          <p className="text-sm text-destructive">Failed to load plugins: {pluginsResult.message}</p>
-        ) : pluginsResult.data.length === 0 ? (
+        ) : plugins.length === 0 ? (
           <p className="text-sm text-muted-foreground">No plugins found in this marketplace.</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {pluginsResult.data.map((plugin) => (
+            {plugins.map((plugin) => (
               <LinkComponent
                 key={plugin.name}
                 href={`${basePath}/plugin-marketplaces/${marketplaceId}/plugins/${plugin.name}`}
