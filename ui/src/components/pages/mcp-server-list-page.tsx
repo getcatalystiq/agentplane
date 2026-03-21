@@ -9,6 +9,8 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { AdminTable, AdminTableHead, AdminTableRow, Th, EmptyRow } from "../ui/admin-table";
 import { ConfirmDialog } from "../ui/confirm-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter } from "../ui/dialog";
+import { FormField } from "../ui/form-field";
 import { Skeleton } from "../ui/skeleton";
 
 interface McpServer {
@@ -29,6 +31,8 @@ export interface McpServerListPageProps {
   initialData?: McpServer[];
 }
 
+const emptyForm = { name: "", slug: "", description: "", base_url: "", mcp_endpoint_path: "/mcp" };
+
 export function McpServerListPage({ initialData }: McpServerListPageProps) {
   const { mutate } = useSWRConfig();
   const client = useAgentPlaneClient();
@@ -39,23 +43,56 @@ export function McpServerListPage({ initialData }: McpServerListPageProps) {
     initialData ? { fallbackData: initialData } : undefined,
   );
 
-  const [showAdd, setShowAdd] = useState(false);
-  const [adding, setAdding] = useState(false);
-  const [newServer, setNewServer] = useState({ name: "", slug: "", description: "", base_url: "", mcp_endpoint_path: "/mcp" });
+  // Create modal
+  const [showCreate, setShowCreate] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createForm, setCreateForm] = useState(emptyForm);
+  const [createError, setCreateError] = useState("");
 
+  // Edit modal
+  const [editTarget, setEditTarget] = useState<McpServer | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState({ name: "", description: "" });
+  const [editError, setEditError] = useState("");
+
+  // Delete
   const [deleteTarget, setDeleteTarget] = useState<McpServer | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
 
-  async function handleAdd() {
-    setAdding(true);
+  async function handleCreate() {
+    setCreating(true);
+    setCreateError("");
     try {
-      await client.customConnectors.createServer!(newServer);
-      setShowAdd(false);
-      setNewServer({ name: "", slug: "", description: "", base_url: "", mcp_endpoint_path: "/mcp" });
+      await client.customConnectors.createServer!(createForm);
+      setShowCreate(false);
+      setCreateForm(emptyForm);
       mutate("mcp-servers");
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : "Failed to create");
     } finally {
-      setAdding(false);
+      setCreating(false);
+    }
+  }
+
+  function openEdit(server: McpServer) {
+    setEditTarget(server);
+    setEditForm({ name: server.name, description: server.description });
+    setEditError("");
+  }
+
+  async function handleEdit() {
+    if (!editTarget) return;
+    setEditing(true);
+    setEditError("");
+    try {
+      await client.customConnectors.updateServer!(editTarget.id, editForm);
+      setEditTarget(null);
+      mutate("mcp-servers");
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : "Failed to update");
+    } finally {
+      setEditing(false);
     }
   }
 
@@ -77,7 +114,7 @@ export function McpServerListPage({ initialData }: McpServerListPageProps) {
   if (error) {
     return (
       <div className="flex items-center justify-center min-h-[40vh]">
-        <p className="text-destructive">Failed to load MCP servers: {error.message}</p>
+        <p className="text-destructive">Failed to load connectors: {error.message}</p>
       </div>
     );
   }
@@ -89,25 +126,10 @@ export function McpServerListPage({ initialData }: McpServerListPageProps) {
   return (
     <div className="space-y-6">
       <div className="flex items-center">
-        <Button variant="outline" size="sm" onClick={() => setShowAdd(!showAdd)}>
-          {showAdd ? "Cancel" : "Register Connector"}
+        <Button variant="outline" size="sm" onClick={() => setShowCreate(true)}>
+          + New Connector
         </Button>
       </div>
-
-      {showAdd && (
-        <div className="rounded-lg border border-border p-4 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <Input placeholder="Name" value={newServer.name} onChange={(e) => setNewServer({ ...newServer, name: e.target.value })} />
-            <Input placeholder="Slug" value={newServer.slug} onChange={(e) => setNewServer({ ...newServer, slug: e.target.value })} />
-            <Input placeholder="Description" value={newServer.description} onChange={(e) => setNewServer({ ...newServer, description: e.target.value })} />
-            <Input placeholder="Base URL" value={newServer.base_url} onChange={(e) => setNewServer({ ...newServer, base_url: e.target.value })} />
-            <Input placeholder="MCP Endpoint Path" value={newServer.mcp_endpoint_path} onChange={(e) => setNewServer({ ...newServer, mcp_endpoint_path: e.target.value })} />
-          </div>
-          <Button size="sm" onClick={handleAdd} disabled={adding || !newServer.name || !newServer.base_url}>
-            {adding ? "Adding..." : "Add Server"}
-          </Button>
-        </div>
-      )}
 
       <AdminTable>
         <AdminTableHead>
@@ -124,12 +146,15 @@ export function McpServerListPage({ initialData }: McpServerListPageProps) {
           {servers.map((s) => (
             <AdminTableRow key={s.id}>
               <td className="p-3">
-                <div className="flex items-center gap-2">
+                <button
+                  onClick={() => openEdit(s)}
+                  className="flex items-center gap-2 text-left hover:underline cursor-pointer"
+                >
                   {s.logo_url && (
                     <img src={s.logo_url} alt="" className="w-5 h-5 rounded-sm object-contain" />
                   )}
-                  <span className="font-medium">{s.name}</span>
-                </div>
+                  <span className="font-medium text-primary">{s.name}</span>
+                </button>
               </td>
               <td className="p-3 font-mono text-xs text-muted-foreground">{s.slug}</td>
               <td className="p-3 font-mono text-xs text-muted-foreground truncate max-w-xs" title={s.base_url}>
@@ -159,23 +184,88 @@ export function McpServerListPage({ initialData }: McpServerListPageProps) {
           ))}
           {servers.length === 0 && (
             <EmptyRow colSpan={8}>
-              No custom connectors registered. Click &quot;Register Connector&quot; to add one.
+              No custom connectors registered. Click &quot;+ New Connector&quot; to add one.
             </EmptyRow>
           )}
         </tbody>
       </AdminTable>
 
+      {/* Create Modal */}
+      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Register Connector</DialogTitle>
+          </DialogHeader>
+          <DialogBody className="space-y-3">
+            {createError && <p className="text-sm text-destructive">{createError}</p>}
+            <FormField label="Name">
+              <Input value={createForm.name} onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })} placeholder="My MCP Server" />
+            </FormField>
+            <FormField label="Slug">
+              <Input value={createForm.slug} onChange={(e) => setCreateForm({ ...createForm, slug: e.target.value })} placeholder="my-mcp-server" />
+            </FormField>
+            <FormField label="Description">
+              <Input value={createForm.description} onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })} placeholder="What this connector does" />
+            </FormField>
+            <FormField label="Base URL">
+              <Input value={createForm.base_url} onChange={(e) => setCreateForm({ ...createForm, base_url: e.target.value })} placeholder="https://my-server.example.com" />
+            </FormField>
+            <FormField label="MCP Endpoint Path">
+              <Input value={createForm.mcp_endpoint_path} onChange={(e) => setCreateForm({ ...createForm, mcp_endpoint_path: e.target.value })} placeholder="/mcp" />
+            </FormField>
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
+            <Button onClick={handleCreate} disabled={creating || !createForm.name || !createForm.base_url}>
+              {creating ? "Creating..." : "Create"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Modal */}
+      <Dialog open={!!editTarget} onOpenChange={(open) => { if (!open) setEditTarget(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Connector</DialogTitle>
+          </DialogHeader>
+          <DialogBody className="space-y-3">
+            {editError && <p className="text-sm text-destructive">{editError}</p>}
+            <FormField label="Name">
+              <Input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
+            </FormField>
+            <FormField label="Description">
+              <Input value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} />
+            </FormField>
+            {editTarget && (
+              <div className="text-xs text-muted-foreground space-y-1">
+                <div><span className="font-medium">Slug:</span> {editTarget.slug}</div>
+                <div><span className="font-medium">Base URL:</span> {editTarget.base_url}</div>
+                <div><span className="font-medium">Endpoint:</span> {editTarget.mcp_endpoint_path}</div>
+              </div>
+            )}
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditTarget(null)}>Cancel</Button>
+            <Button onClick={handleEdit} disabled={editing || !editForm.name}>
+              {editing ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirm */}
       <ConfirmDialog
         open={!!deleteTarget}
         onOpenChange={(open) => { if (!open) { setDeleteTarget(null); setDeleteError(""); } }}
-        title="Delete Server"
+        title="Delete Connector"
         confirmLabel="Delete"
         loadingLabel="Deleting..."
         loading={deleting}
         error={deleteError}
         onConfirm={handleDelete}
       >
-        Delete MCP server <span className="font-medium text-foreground">{deleteTarget?.name}</span>? This cannot be undone.
+        Delete connector <span className="font-medium text-foreground">{deleteTarget?.name}</span>? This cannot be undone.
       </ConfirmDialog>
     </div>
   );

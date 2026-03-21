@@ -20,6 +20,42 @@ export class CustomConnectorsResource {
     return resp.data;
   }
 
+  /** Register a new custom connector server. */
+  async createServer(params: {
+    name: string;
+    slug: string;
+    description?: string;
+    base_url: string;
+    mcp_endpoint_path?: string;
+  }): Promise<CustomConnectorServer> {
+    return this._client._request<CustomConnectorServer>(
+      "POST",
+      "/api/mcp-servers",
+      { body: params },
+    );
+  }
+
+  /** Update a custom connector server. */
+  async updateServer(serverId: string, params: {
+    name?: string;
+    description?: string;
+    logo_url?: string | null;
+  }): Promise<CustomConnectorServer> {
+    return this._client._request<CustomConnectorServer>(
+      "PATCH",
+      `/api/mcp-servers/${serverId}`,
+      { body: params },
+    );
+  }
+
+  /** Delete a custom connector server. */
+  async deleteServer(serverId: string): Promise<void> {
+    await this._client._request<unknown>(
+      "DELETE",
+      `/api/mcp-servers/${serverId}`,
+    );
+  }
+
   // --- Agent-scoped methods ---
 
   /** List custom connector connections for an agent. */
