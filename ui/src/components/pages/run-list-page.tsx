@@ -31,8 +31,10 @@ interface RunItem {
 }
 
 interface RunListResponse {
-  runs: RunItem[];
-  total: number;
+  data: RunItem[];
+  limit: number;
+  offset: number;
+  has_more: boolean;
 }
 
 const SOURCES = [
@@ -102,7 +104,8 @@ export function RunListPage({ initialData }: RunListPageProps) {
     );
   }
 
-  const { runs, total } = data;
+  const runs = data.data;
+  const total = data.has_more ? data.offset + data.limit + 1 : data.offset + runs.length;
 
   return (
     <div>

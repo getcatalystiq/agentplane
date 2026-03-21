@@ -29,6 +29,7 @@ export interface AgentPlaneClient {
     get(runId: string): Promise<unknown>;
     cancel(runId: string): Promise<unknown>;
     transcript(runId: string): Promise<unknown>;
+    transcriptArray(runId: string): Promise<unknown[]>;
   };
   sessions: {
     list(params?: Record<string, unknown>): Promise<unknown>;

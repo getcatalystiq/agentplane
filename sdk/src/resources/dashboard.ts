@@ -14,7 +14,7 @@ export class DashboardResource {
     const resp = await this._client._request<{ data: DailyAgentStat[] }>(
       "GET",
       "/api/dashboard/charts",
-      { query: { days: params?.days } },
+      { query: { days: params?.days ?? 30 } },
     );
     return resp.data;
   }

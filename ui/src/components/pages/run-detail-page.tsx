@@ -69,7 +69,7 @@ export function RunDetailPage({ runId, initialData, initialTranscript }: RunDeta
 
   const { data: transcript } = useApi<TranscriptEvent[]>(
     run?.transcript_blob_url ? `transcript-${runId}` : null,
-    (client) => client.runs.transcript(runId) as Promise<TranscriptEvent[]>,
+    (client) => client.runs.transcriptArray(runId) as Promise<TranscriptEvent[]>,
     initialTranscript ? { fallbackData: initialTranscript } : undefined,
   );
 

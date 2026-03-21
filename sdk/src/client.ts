@@ -10,6 +10,7 @@ import { ModelsResource } from "./resources/models";
 import { DashboardResource } from "./resources/dashboard";
 import { TenantsResource } from "./resources/tenants";
 import { ComposioResource } from "./resources/composio";
+import { KeysResource } from "./resources/keys";
 
 const VERSION = "0.2.1";
 const MAX_ERROR_BODY_BYTES = 64 * 1024; // 64KB
@@ -25,6 +26,7 @@ export class AgentPlane {
   readonly dashboard: DashboardResource;
   readonly tenants: TenantsResource;
   readonly composio: ComposioResource;
+  readonly keys: KeysResource;
 
   private readonly _getAuthHeader: () => string;
   private readonly _baseUrl: string;
@@ -94,6 +96,7 @@ export class AgentPlane {
     this.dashboard = new DashboardResource(this);
     this.tenants = new TenantsResource(this);
     this.composio = new ComposioResource(this);
+    this.keys = new KeysResource(this);
   }
 
   /** @internal Make a JSON API request. */
@@ -178,7 +181,9 @@ export class AgentPlane {
   }
 
   private _buildUrl(path: string, query?: Record<string, string | number | undefined>): string {
-    const url = new URL(path, this._baseUrl);
+    // Concatenate baseUrl + path to preserve base path segments.
+    // new URL('/api/runs', 'https://host/proxy') would discard '/proxy'.
+    const url = new URL(this._baseUrl + path);
     if (query) {
       for (const [key, value] of Object.entries(query)) {
         if (value !== undefined) {

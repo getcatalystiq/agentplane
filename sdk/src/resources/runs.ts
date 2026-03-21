@@ -159,6 +159,17 @@ export class RunsResource {
     }
   }
 
+  /**
+   * Get the full transcript as an array (convenience wrapper for UI consumers).
+   */
+  async transcriptArray(runId: string): Promise<StreamEvent[]> {
+    const events: StreamEvent[] = [];
+    for await (const event of this.transcript(runId)) {
+      events.push(event);
+    }
+    return events;
+  }
+
   /** @internal Fetch raw transcript response. */
   private async _fetchTranscriptResponse(
     runId: string,

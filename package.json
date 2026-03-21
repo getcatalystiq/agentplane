@@ -20,6 +20,21 @@
     "multi-tenant",
     "mcp"
   ],
+  "main": "./sdk/dist/index.cjs",
+  "module": "./sdk/dist/index.js",
+  "types": "./sdk/dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./sdk/dist/index.d.ts",
+        "default": "./sdk/dist/index.js"
+      },
+      "require": {
+        "types": "./sdk/dist/index.d.cts",
+        "default": "./sdk/dist/index.cjs"
+      }
+    }
+  },
   "engines": {
     "node": ">=20"
   },

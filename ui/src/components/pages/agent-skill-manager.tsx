@@ -6,7 +6,9 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Badge } from "../ui/badge";
 import { SectionHeader } from "../ui/section-header";
-import { Textarea } from "../ui/textarea";
+import { lazy, Suspense } from "react";
+
+const CodeEditor = lazy(() => import("../ui/code-editor"));
 
 interface AgentSkill {
   folder: string;
@@ -162,12 +164,13 @@ export function AgentSkillManager({ agentId, initialSkills, onSaved }: Props) {
           {/* Editor */}
           <div className="flex-1 min-w-0">
             {selectedFile ? (
-              <Textarea
-                value={selectedFile.content}
-                onChange={(e) => updateFileContent(selectedFile.path, e.target.value)}
-                className="h-full min-h-[300px] font-mono text-xs resize-y"
-                placeholder="Enter skill content..."
-              />
+              <Suspense fallback={<div className="h-[300px] animate-pulse bg-muted/50 rounded" />}>
+                <CodeEditor
+                  value={selectedFile.content}
+                  onChange={(val) => updateFileContent(selectedFile.path, val)}
+                  filename={selectedFile.path}
+                />
+              </Suspense>
             ) : (
               <p className="text-sm text-muted-foreground">Select a file to edit</p>
             )}

@@ -4,7 +4,8 @@ export function Select({ className = "", ...props }: React.SelectHTMLAttributes<
   return (
     <div className="relative w-full">
       <select
-        className={`flex h-9 w-full appearance-none rounded-md border border-input bg-transparent pl-3 pr-8 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 ${className}`}
+        className={`flex h-9 w-full rounded-md border border-input bg-transparent pl-3 pr-8 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 ${className}`}
+        style={{ appearance: 'none', WebkitAppearance: 'none' }}
         {...props}
       />
       <div className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center">

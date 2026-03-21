@@ -28,6 +28,7 @@ export function useApi<T = unknown>(
     () => fetcher(client),
     {
       revalidateOnFocus: false,
+      errorRetryCount: 3,
       onError: (err) => {
         if (onAuthError && err && typeof err === "object" && "status" in err && (err as { status: number }).status === 401) {
           onAuthError(err instanceof Error ? err : new Error(String(err)));

@@ -1,6 +1,6 @@
 {
   "name": "@getcatalystiq/agent-plane-ui",
-  "version": "0.1.0",
+  "version": "0.1.5",
   "description": "Embeddable React component library for AgentPlane",
   "type": "module",
   "exports": {
@@ -56,13 +56,33 @@
     "@getcatalystiq/agent-plane": "*",
     "swr": "^2.0.0",
     "react-markdown": "^9.0.0",
-    "recharts": "^2.0.0"
+    "recharts": "^2.0.0",
+    "@uiw/react-codemirror": "^4.0.0",
+    "@codemirror/lang-markdown": "^6.0.0",
+    "@codemirror/lang-javascript": "^6.0.0",
+    "@codemirror/lang-json": "^6.0.0",
+    "@codemirror/theme-one-dark": "^6.0.0"
   },
   "peerDependenciesMeta": {
     "react-markdown": {
       "optional": true
     },
     "recharts": {
+      "optional": true
+    },
+    "@uiw/react-codemirror": {
+      "optional": true
+    },
+    "@codemirror/lang-markdown": {
+      "optional": true
+    },
+    "@codemirror/lang-javascript": {
+      "optional": true
+    },
+    "@codemirror/lang-json": {
+      "optional": true
+    },
+    "@codemirror/theme-one-dark": {
       "optional": true
     }
   },

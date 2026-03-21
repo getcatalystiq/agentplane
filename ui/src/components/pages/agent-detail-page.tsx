@@ -12,7 +12,6 @@ import { AgentEditForm } from "./agent-edit-form";
 import { AgentConnectorsManager } from "./agent-connectors-manager";
 import { AgentSkillManager } from "./agent-skill-manager";
 import { AgentPluginManager } from "./agent-plugin-manager";
-import { AgentScheduleForm } from "./agent-schedule-form";
 import { AgentRuns } from "./agent-runs";
 import { AgentA2aInfo } from "./agent-a2a-info";
 
@@ -43,11 +42,9 @@ interface AgentDetailPageProps {
   a2aBaseUrl?: string;
   /** Tenant slug (needed for A2A URLs) */
   tenantSlug?: string;
-  /** Tenant timezone (for schedule display) */
-  timezone?: string;
 }
 
-export function AgentDetailPage({ agentId, a2aBaseUrl, tenantSlug, timezone = "UTC" }: AgentDetailPageProps) {
+export function AgentDetailPage({ agentId, a2aBaseUrl, tenantSlug }: AgentDetailPageProps) {
   const { LinkComponent, basePath } = useNavigation();
   const { mutate } = useSWRConfig();
 
@@ -160,15 +157,6 @@ export function AgentDetailPage({ agentId, a2aBaseUrl, tenantSlug, timezone = "U
                 agentId={agent.id}
                 initialPlugins={agent.plugins ?? []}
                 onSaved={invalidate}
-              />
-            ),
-          },
-          {
-            label: "Schedules",
-            content: (
-              <AgentScheduleForm
-                initialSchedules={[]}
-                timezone={timezone}
               />
             ),
           },
