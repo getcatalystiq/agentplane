@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { authenticateAdminFromCookie } from "@/lib/admin-auth";
+import { timingSafeEqual } from "@/lib/crypto";
 
 // Paths that don't require authentication.
 // NOTE: Uses prefix matching via startsWith — any new routes under these
@@ -33,6 +34,14 @@ export async function middleware(request: NextRequest) {
     // Login API is public
     if (pathname === "/api/admin/login") {
       return NextResponse.next();
+    }
+    // Accept cookie auth OR Bearer token matching ADMIN_API_KEY
+    const adminAuth = request.headers.get("authorization");
+    if (adminAuth?.startsWith("Bearer ")) {
+      const adminKey = process.env.ADMIN_API_KEY;
+      if (adminKey && timingSafeEqual(adminAuth.slice(7), adminKey)) {
+        return NextResponse.next();
+      }
     }
     if (!(await authenticateAdminFromCookie(request))) {
       return NextResponse.json(
