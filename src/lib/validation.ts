@@ -524,6 +524,7 @@ export const RunRow = z.object({
   started_at: z.coerce.string().nullable(),
   completed_at: z.coerce.string().nullable(),
   created_at: z.coerce.string(),
+  agent_name: z.string().nullable().optional(),
 });
 
 // --- Schedule DB Row & CRUD Schemas ---
