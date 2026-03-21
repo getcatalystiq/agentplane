@@ -80,36 +80,47 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     return NextResponse.json({ error: { message: `Slug '${rawSlug}' is reserved` } }, { status: 422 });
   }
 
-  try {
-    await execute(
-      `INSERT INTO agents (id, tenant_id, name, slug, description, git_repo_url, git_branch,
-        composio_toolkits, skills, model, runner, allowed_tools, permission_mode, max_turns, max_budget_usd, max_runtime_seconds, a2a_enabled)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17)`,
-      [
-        id,
-        input.tenant_id,
-        input.name,
-        rawSlug,
-        input.description ?? null,
-        input.git_repo_url ?? null,
-        input.git_branch,
-        input.composio_toolkits,
-        JSON.stringify(input.skills),
-        input.model,
-        input.runner ?? null,
-        input.allowed_tools,
-        input.permission_mode,
-        input.max_turns,
-        input.max_budget_usd,
-        input.max_runtime_seconds,
-        input.a2a_enabled,
-      ],
-    );
-  } catch (err: unknown) {
-    if (err instanceof Error && err.message.includes("23505") && err.message.includes("tenant_slug")) {
-      return NextResponse.json({ error: { message: `Slug '${rawSlug}' is already taken` } }, { status: 409 });
+  let name = input.name;
+  let slug = rawSlug;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      await execute(
+        `INSERT INTO agents (id, tenant_id, name, slug, description, git_repo_url, git_branch,
+          composio_toolkits, skills, model, runner, allowed_tools, permission_mode, max_turns, max_budget_usd, max_runtime_seconds, a2a_enabled)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17)`,
+        [
+          id,
+          input.tenant_id,
+          name,
+          slug,
+          input.description ?? null,
+          input.git_repo_url ?? null,
+          input.git_branch,
+          input.composio_toolkits,
+          JSON.stringify(input.skills),
+          input.model,
+          input.runner ?? null,
+          input.allowed_tools,
+          input.permission_mode,
+          input.max_turns,
+          input.max_budget_usd,
+          input.max_runtime_seconds,
+          input.a2a_enabled,
+        ],
+      );
+      break;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("agents_tenant_id_name_key") && attempt < 4) {
+        name = `${input.name}-${attempt + 2}`;
+        slug = `${rawSlug}-${attempt + 2}`;
+        continue;
+      }
+      if (msg.includes("23505") && msg.includes("tenant_slug")) {
+        return NextResponse.json({ error: { message: `Slug '${slug}' is already taken` } }, { status: 409 });
+      }
+      throw err;
     }
-    throw err;
   }
 
   const agent = await queryOne(AgentRow, "SELECT * FROM agents WHERE id = $1", [id]);

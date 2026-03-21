@@ -14,29 +14,43 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const input = CreateAgentSchema.parse(body);
   const id = generateId();
 
-  await execute(
-    `INSERT INTO agents (id, tenant_id, name, description, git_repo_url, git_branch,
-      composio_toolkits, skills, model, runner, allowed_tools, permission_mode, max_turns, max_budget_usd, max_runtime_seconds, a2a_enabled)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13, $14, $15, $16)`,
-    [
-      id,
-      auth.tenantId,
-      input.name,
-      input.description ?? null,
-      input.git_repo_url ?? null,
-      input.git_branch,
-      input.composio_toolkits,
-      JSON.stringify(input.skills),
-      input.model,
-      input.runner,
-      input.allowed_tools,
-      input.permission_mode,
-      input.max_turns,
-      input.max_budget_usd,
-      input.max_runtime_seconds,
-      input.a2a_enabled,
-    ],
-  );
+  // Retry with suffix on duplicate name
+  let name = input.name;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      await execute(
+        `INSERT INTO agents (id, tenant_id, name, description, git_repo_url, git_branch,
+          composio_toolkits, skills, model, runner, allowed_tools, permission_mode, max_turns, max_budget_usd, max_runtime_seconds, a2a_enabled)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13, $14, $15, $16)`,
+        [
+          id,
+          auth.tenantId,
+          name,
+          input.description ?? null,
+          input.git_repo_url ?? null,
+          input.git_branch,
+          input.composio_toolkits,
+          JSON.stringify(input.skills),
+          input.model,
+          input.runner,
+          input.allowed_tools,
+          input.permission_mode,
+          input.max_turns,
+          input.max_budget_usd,
+          input.max_runtime_seconds,
+          input.a2a_enabled,
+        ],
+      );
+      break;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("agents_tenant_id_name_key") && attempt < 4) {
+        name = `${input.name}-${attempt + 2}`;
+        continue;
+      }
+      throw err;
+    }
+  }
 
   const agent = await query(
     AgentRow,
@@ -44,7 +58,7 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     [id, auth.tenantId],
   );
 
-  logger.info("Agent created", { tenant_id: auth.tenantId, agent_id: id, name: input.name });
+  logger.info("Agent created", { tenant_id: auth.tenantId, agent_id: id, name });
 
   return jsonResponse(agent[0], 201);
 });
