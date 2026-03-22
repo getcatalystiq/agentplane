@@ -13,7 +13,7 @@ import {
 import type { RunStatus, RunTriggeredBy, TenantId, AgentId, RunId, ScheduleId } from "./types";
 import { VALID_TRANSITIONS } from "./types";
 
-const MAX_CONCURRENT_RUNS = 10;
+const MAX_CONCURRENT_RUNS = 50;
 
 const TenantBudgetRow = z.object({
   status: z.enum(["active", "suspended"]),

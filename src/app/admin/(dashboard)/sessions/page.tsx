@@ -66,8 +66,8 @@ export default async function SessionsPage() {
     <div>
       <div className="flex items-center gap-4 mb-6">
         <p className="text-sm text-muted-foreground">
-          <span className={active >= 5 ? "text-destructive font-semibold" : ""}>{active}</span>
-          {" "}/ 5 active sessions
+          <span className={active >= 50 ? "text-destructive font-semibold" : ""}>{active}</span>
+          {" "}/ 50 active sessions
           <span className="ml-2 text-muted-foreground/60">({total} total)</span>
         </p>
       </div>

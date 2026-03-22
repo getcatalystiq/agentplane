@@ -11,7 +11,7 @@ import {
 import type { SessionStatus, TenantId, AgentId } from "./types";
 import { SESSION_VALID_TRANSITIONS } from "./types";
 
-const MAX_CONCURRENT_SESSIONS = 5;
+const MAX_CONCURRENT_SESSIONS = 50;
 
 export type Session = z.infer<typeof SessionRow>;
 
