@@ -246,7 +246,8 @@ export default function PlaygroundPage({ params }: { params: Promise<{ agentId: 
         res = await adminStream(`/runs/${runId}/stream?offset=${eventOffset}`, {
           signal: abortRef.current?.signal,
         });
-      } catch {
+      } catch (err) {
+        if ((err as Error)?.name === "AbortError") return;
         await pollForFinalResult(runId);
         return;
       }

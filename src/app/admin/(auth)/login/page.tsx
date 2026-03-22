@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { adminFetch } from "@/app/admin/lib/api";
+import { adminFetch, AdminApiError } from "@/app/admin/lib/api";
 
 export default function AdminLoginPage() {
   const [password, setPassword] = useState("");
@@ -22,8 +22,8 @@ export default function AdminLoginPage() {
         body: JSON.stringify({ password }),
       });
       window.location.href = "/admin";
-    } catch {
-      setError("Invalid credentials");
+    } catch (err) {
+      setError(err instanceof AdminApiError ? "Invalid credentials" : "Something went wrong");
     } finally {
       setLoading(false);
     }

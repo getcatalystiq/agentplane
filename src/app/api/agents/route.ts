@@ -13,15 +13,15 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   const body = await request.json();
   const input = CreateAgentSchema.parse(body);
 
-  const id = await createAgentRecord(auth.tenantId, input);
+  const result = await createAgentRecord(auth.tenantId, input);
 
   const agent = await query(
     AgentRow,
     "SELECT * FROM agents WHERE id = $1 AND tenant_id = $2",
-    [id, auth.tenantId],
+    [result.id, auth.tenantId],
   );
 
-  logger.info("Agent created", { tenant_id: auth.tenantId, agent_id: id, name: input.name });
+  logger.info("Agent created", { tenant_id: auth.tenantId, agent_id: result.id, name: result.name });
 
   return jsonResponse(agent[0], 201);
 });

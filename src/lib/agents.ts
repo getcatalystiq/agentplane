@@ -1,6 +1,6 @@
 import { queryOne, execute } from "@/db";
 import { AgentRow, CreateAgentSchema } from "@/lib/validation";
-import { NotFoundError } from "@/lib/errors";
+import { NotFoundError, ValidationError, ConflictError } from "@/lib/errors";
 import { generateId } from "@/lib/crypto";
 import type { TenantId } from "@/lib/types";
 import type { z } from "zod";
@@ -23,19 +23,31 @@ export function isReservedSlug(slug: string): boolean {
   return RESERVED_SLUGS.has(slug);
 }
 
+interface CreateAgentOptions {
+  /** Override the auto-derived slug. */
+  slug?: string;
+}
+
+interface CreateAgentResult {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 /**
  * Insert an agent with retry on duplicate name/slug.
- * Returns the new agent ID.
+ * Throws ValidationError for reserved slugs, ConflictError for slug collisions.
  */
 export async function createAgentRecord(
   tenantId: string,
   input: z.infer<typeof CreateAgentSchema>,
-): Promise<string> {
+  options?: CreateAgentOptions,
+): Promise<CreateAgentResult> {
   const id = generateId();
-  const rawSlug = slugifyName(input.name) || `agent-${id.slice(0, 8)}`;
+  const rawSlug = options?.slug ?? (slugifyName(input.name) || `agent-${id.slice(0, 8)}`);
 
   if (isReservedSlug(rawSlug)) {
-    throw new Error(`Slug '${rawSlug}' is reserved`);
+    throw new ValidationError(`Slug '${rawSlug}' is reserved`);
   }
 
   let name = input.name;
@@ -66,7 +78,7 @@ export async function createAgentRecord(
           input.a2a_enabled,
         ],
       );
-      return id;
+      return { id, name, slug };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "";
       if (msg.includes("agents_tenant_id_name_key") && attempt < 4) {
@@ -74,10 +86,13 @@ export async function createAgentRecord(
         slug = `${rawSlug}-${attempt + 2}`;
         continue;
       }
+      if (msg.includes("23505") && msg.includes("tenant_slug")) {
+        throw new ConflictError(`Slug '${slug}' is already taken`);
+      }
       throw err;
     }
   }
-  return id;
+  return { id, name, slug };
 }
 
 /**

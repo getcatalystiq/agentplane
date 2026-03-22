@@ -2,25 +2,25 @@ export class AdminApiError extends Error {
   constructor(
     public readonly status: number,
     message: string,
-    public readonly code?: string,
   ) {
     super(message);
     this.name = "AdminApiError";
   }
 }
 
-export async function adminFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`/api/admin${path}`, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...init?.headers },
-  });
+export async function adminFetch<T = void>(path: string, init?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = { ...init?.headers as Record<string, string> };
+  if (init?.body) {
+    headers["Content-Type"] ??= "application/json";
+  }
+  const res = await fetch(`/api/admin${path}`, { ...init, headers });
   if (!res.ok) {
     const body = await res.json().catch(() => null);
     const err = body?.error;
-    throw new AdminApiError(res.status, err?.message ?? res.statusText, err?.code);
+    throw new AdminApiError(res.status, err?.message ?? res.statusText);
   }
   const text = await res.text();
-  if (!text) return undefined as T;
+  if (!text) return undefined as unknown as T;
   return JSON.parse(text) as T;
 }
 
@@ -29,7 +29,7 @@ export async function adminStream(path: string, init?: RequestInit): Promise<Res
   if (!res.ok) {
     const body = await res.json().catch(() => null);
     const err = body?.error;
-    throw new AdminApiError(res.status, err?.message ?? res.statusText, err?.code);
+    throw new AdminApiError(res.status, err?.message ?? res.statusText);
   }
   return res;
 }
