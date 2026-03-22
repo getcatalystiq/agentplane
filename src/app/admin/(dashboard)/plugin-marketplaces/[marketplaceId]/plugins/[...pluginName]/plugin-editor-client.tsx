@@ -9,7 +9,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { FileTreeEditor } from "@/components/file-tree-editor";
 import type { FlatFile } from "@/components/file-tree-editor";
-import { adminFetch, AdminApiError } from "@/app/admin/lib/api";
+import { adminFetch } from "@/app/admin/lib/api";
 
 interface PluginEditorClientProps {
   marketplaceId: string;

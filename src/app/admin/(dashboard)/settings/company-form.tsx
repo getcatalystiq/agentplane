@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { SectionHeader } from "@/components/ui/section-header";
 import { FormField } from "@/components/ui/form-field";
 import { adminFetch } from "@/app/admin/lib/api";
 
