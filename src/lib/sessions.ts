@@ -2,6 +2,7 @@ import { z } from "zod";
 import { query, queryOne, execute, withTenantTransaction } from "@/db";
 import { SessionRow, AgentRowInternal, AgentInternal } from "./validation";
 import { checkTenantBudget } from "./runs";
+import { supportsClaudeRunner } from "./models";
 import { logger } from "./logger";
 import {
   NotFoundError,
@@ -28,7 +29,8 @@ export async function createSession(
     );
     if (!agent) throw new NotFoundError("Agent not found");
 
-    const remainingBudget = await checkTenantBudget(tx, tenantId);
+    const isSubscriptionRun = supportsClaudeRunner(agent.model);
+    const remainingBudget = await checkTenantBudget(tx, tenantId, { isSubscriptionRun });
 
     const result = await tx.queryOne(
       SessionRow,

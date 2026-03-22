@@ -2,7 +2,7 @@ import { z } from "zod";
 import { query, queryOne, execute, withTenantTransaction } from "@/db";
 import { RunRow, AgentRowInternal, AgentInternal } from "./validation";
 import { generateId } from "./crypto";
-import { resolveEffectiveRunner } from "./models";
+import { resolveEffectiveRunner, supportsClaudeRunner } from "./models";
 import { logger } from "./logger";
 import {
   NotFoundError,
@@ -25,13 +25,15 @@ const TenantBudgetRow = z.object({
 /**
  * Check tenant suspension status and budget within a transaction.
  * Throws ForbiddenError if suspended, BudgetExceededError if over budget.
- * Subscription tenants (with a Claude subscription token) bypass budget enforcement
- * since their Claude usage is billed through the subscription, not per-token.
- * Returns remaining budget in USD.
+ * When `isSubscriptionRun` is true (Claude model on a subscription tenant),
+ * budget enforcement is bypassed since usage is billed through the subscription.
+ * Non-Claude models on the same tenant still enforce the budget.
+ * Returns remaining budget in USD (Infinity for subscription runs).
  */
 export async function checkTenantBudget(
   tx: { queryOne: <T>(schema: z.ZodSchema<T>, sql: string, params?: unknown[]) => Promise<T | null> },
   tenantId: TenantId,
+  options?: { isSubscriptionRun?: boolean },
 ): Promise<number> {
   const row = await tx.queryOne(
     TenantBudgetRow,
@@ -41,8 +43,8 @@ export async function checkTenantBudget(
   if (row?.status === "suspended") {
     throw new ForbiddenError("Tenant is suspended");
   }
-  // Subscription tenants bypass budget enforcement — usage billed via subscription
-  if (row?.has_subscription_token) {
+  // Subscription runs (Claude model + subscription token) bypass budget enforcement
+  if (options?.isSubscriptionRun && row?.has_subscription_token) {
     return Infinity;
   }
   if (row && row.current_month_spend >= row.monthly_budget_usd) {
@@ -76,7 +78,8 @@ export async function createRun(
     );
     if (!agent) throw new NotFoundError("Agent not found");
 
-    const remainingBudget = await checkTenantBudget(tx, tenantId);
+    const isSubscriptionRun = supportsClaudeRunner(agent.model);
+    const remainingBudget = await checkTenantBudget(tx, tenantId, { isSubscriptionRun });
 
     // Atomic insert with concurrent run limit check
     const runId = generateId();

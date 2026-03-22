@@ -12,6 +12,7 @@ import { RateLimitError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 import { getHttpClient } from "@/db";
 import { AgentRowInternal } from "@/lib/validation";
+import { supportsClaudeRunner } from "@/lib/models";
 import { z } from "zod";
 import {
   a2aHeaders,
@@ -118,18 +119,6 @@ export const POST = withErrorHandler(async (request: NextRequest, context) => {
   }
   const tenant = TenantForBudgetRow.parse(tenantRows[0]);
 
-  // Best-effort budget gate — authoritative check is inside createRun() (transactional)
-  // Subscription tenants bypass budget enforcement — usage billed via subscription
-  if (!tenant.has_subscription_token && tenant.current_month_spend >= tenant.monthly_budget_usd) {
-    return NextResponse.json(
-      { jsonrpc: "2.0", error: { code: -32001, message: "Monthly budget exceeded" }, id: body.id ?? null },
-      { status: 200, headers: a2aHeaders(requestId) },
-    );
-  }
-  const remainingBudget = tenant.has_subscription_token
-    ? Infinity
-    : tenant.monthly_budget_usd - tenant.current_month_spend;
-
   // Resolve agent by slug — fail fast if not A2A-enabled
   const agentRows = await sql`
     SELECT * FROM agents
@@ -144,6 +133,19 @@ export const POST = withErrorHandler(async (request: NextRequest, context) => {
     );
   }
   const agent = AgentRowInternal.parse(agentRows[0]);
+
+  // Best-effort budget gate — authoritative check is inside createRun() (transactional)
+  // Subscription runs (Claude model + subscription token) bypass budget enforcement
+  const isSubscriptionRun = tenant.has_subscription_token && supportsClaudeRunner(agent.model);
+  if (!isSubscriptionRun && tenant.current_month_spend >= tenant.monthly_budget_usd) {
+    return NextResponse.json(
+      { jsonrpc: "2.0", error: { code: -32001, message: "Monthly budget exceeded" }, id: body.id ?? null },
+      { status: 200, headers: a2aHeaders(requestId) },
+    );
+  }
+  const remainingBudget = isSubscriptionRun
+    ? Infinity
+    : tenant.monthly_budget_usd - tenant.current_month_spend;
 
   const baseUrl = getCallbackBaseUrl();
 
