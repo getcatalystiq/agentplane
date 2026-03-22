@@ -19,7 +19,7 @@ interface ContentBlock {
 }
 
 interface ConversationItem {
-  role: "system" | "assistant" | "tool" | "result" | "error" | "a2a_incoming";
+  role: "system" | "assistant" | "tool" | "result" | "error" | "a2a_incoming" | "mcp_status" | "rate_limit";
   text?: string;
   toolName?: string;
   toolInput?: unknown;
@@ -36,6 +36,7 @@ interface ConversationItem {
   timestamp?: string;
   callbackUrl?: string;
   sender?: string;
+  raw?: unknown;
 }
 
 function buildConversation(events: TranscriptEvent[]): ConversationItem[] {
@@ -147,6 +148,10 @@ function buildConversation(events: TranscriptEvent[]): ConversationItem[] {
         role: "error",
         error: String(event.error || "Unknown error"),
       });
+    } else if (event.type === "mcp_status") {
+      items.push({ role: "mcp_status", raw: event });
+    } else if (event.type === "rate_limit_event") {
+      items.push({ role: "rate_limit", raw: event });
     }
   }
 
@@ -195,6 +200,10 @@ function ConversationView({ items }: { items: ConversationItem[] }) {
             return <ResultItem key={i} item={item} />;
           case "error":
             return <ErrorItem key={i} item={item} />;
+          case "mcp_status":
+            return <CollapsedEventItem key={i} label="mcp_status" raw={item.raw} />;
+          case "rate_limit":
+            return <CollapsedEventItem key={i} label="rate_limit_event" raw={item.raw} />;
           default:
             return null;
         }
@@ -342,6 +351,28 @@ function ErrorItem({ item }: { item: ConversationItem }) {
         <Badge variant="destructive" className="text-[10px]">error</Badge>
       </div>
       <pre className="mt-1 text-xs font-mono text-destructive whitespace-pre-wrap">{item.error}</pre>
+    </div>
+  );
+}
+
+function CollapsedEventItem({ label, raw }: { label: string; raw: unknown }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="rounded-md border border-border bg-muted/20 overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-2 px-4 py-1.5 text-left hover:bg-muted/40 transition-colors"
+      >
+        <Badge variant="outline" className="text-[10px] font-mono">{label}</Badge>
+        <span className="text-xs text-muted-foreground flex-shrink-0 ml-auto">{expanded ? "▲" : "▼"}</span>
+      </button>
+      {expanded && (
+        <div className="px-4 py-2 border-t border-border bg-muted/10">
+          <pre className="text-xs font-mono overflow-x-auto text-muted-foreground whitespace-pre-wrap">
+            {JSON.stringify(raw, null, 2)}
+          </pre>
+        </div>
+      )}
     </div>
   );
 }
