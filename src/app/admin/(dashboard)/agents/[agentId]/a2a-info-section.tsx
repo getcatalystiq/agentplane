@@ -4,6 +4,7 @@ import { useState, useRef, KeyboardEvent } from "react";
 import { SectionHeader } from "@/components/ui/section-header";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Button } from "@/components/ui/button";
+import { adminFetch } from "@/app/admin/lib/api";
 
 export function A2aInfoSection({
   agentId,
@@ -38,12 +39,13 @@ export function A2aInfoSection({
     setToggling(true);
     try {
       const next = !enabled;
-      const res = await fetch(`/api/admin/agents/${agentId}`, {
+      await adminFetch(`/agents/${agentId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ a2a_enabled: next }),
       });
-      if (res.ok) setEnabled(next);
+      setEnabled(next);
+    } catch {
+      // Revert on failure — toggle stays at current state
     } finally {
       setToggling(false);
     }
@@ -52,9 +54,8 @@ export function A2aInfoSection({
   async function saveTags(nextTags: string[]) {
     setSavingTags(true);
     try {
-      await fetch(`/api/admin/agents/${agentId}`, {
+      await adminFetch(`/agents/${agentId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ a2a_tags: nextTags }),
       });
     } finally {
