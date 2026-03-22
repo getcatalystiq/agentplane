@@ -127,10 +127,8 @@ export function invalidateAuthCache(tenantId: string): void {
 export function buildSandboxAuthEnv(auth: SandboxAuth): Record<string, string> {
   const env: Record<string, string> = {
     ANTHROPIC_BASE_URL: auth.anthropicBaseUrl,
-    // Subscription tokens (sk-ant-oat01-...) must go in ANTHROPIC_API_KEY — Claude Code CLI
-    // reads that for headless auth. AI Gateway auth uses ANTHROPIC_AUTH_TOKEN instead.
-    ANTHROPIC_API_KEY: auth.isSubscription ? auth.anthropicAuthToken : "",
-    ANTHROPIC_AUTH_TOKEN: auth.isSubscription ? "" : auth.anthropicAuthToken,
+    ANTHROPIC_AUTH_TOKEN: auth.anthropicAuthToken,
+    ANTHROPIC_API_KEY: "",
     // Always set AI_GATEWAY_API_KEY — needed for Vercel AI SDK (non-Anthropic models on same tenant)
     AI_GATEWAY_API_KEY: getEnv().AI_GATEWAY_API_KEY,
   };
