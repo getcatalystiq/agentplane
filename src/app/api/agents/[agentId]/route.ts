@@ -67,10 +67,16 @@ export const PUT = withErrorHandler(async (request: NextRequest, context) => {
     }
   }
 
-  // Skills need a JSONB cast
+  // Skills and plugins need a JSONB cast
   if (input.skills !== undefined) {
     setClauses.push(`skills = $${paramIdx}::jsonb`);
     params.push(JSON.stringify(input.skills));
+    paramIdx++;
+  }
+
+  if (input.plugins !== undefined) {
+    setClauses.push(`plugins = $${paramIdx}::jsonb`);
+    params.push(JSON.stringify(input.plugins));
     paramIdx++;
   }
 
