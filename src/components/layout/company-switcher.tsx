@@ -124,9 +124,9 @@ export function CompanySwitcher() {
       setActiveCompanyId(company.id);
       setActiveTenantCookie(company.id);
       setOpen(false);
-      router.refresh();
+      window.location.reload();
     },
-    [router]
+    []
   );
 
   const activeCompany = companies.find((t) => t.id === activeCompanyId);
