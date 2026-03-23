@@ -21,7 +21,8 @@ interface DatePickerProps {
 export function DatePicker({ value, onChange, placeholder = "Pick a date", disabled, className }: DatePickerProps) {
   const [open, setOpen] = useState(false);
 
-  const selected = value ? parse(value, "yyyy-MM-dd", new Date()) : undefined;
+  const parsed = value ? parse(value, "yyyy-MM-dd", new Date()) : undefined;
+  const selected = parsed && !isNaN(parsed.getTime()) ? parsed : undefined;
 
   function handleSelect(day: Date | undefined) {
     if (day) {
@@ -45,7 +46,7 @@ export function DatePicker({ value, onChange, placeholder = "Pick a date", disab
           )}
         >
           <CalendarIcon className="size-4 mr-2 shrink-0" />
-          {value ? format(selected!, "MMM d, yyyy") : <span>{placeholder}</span>}
+          {selected ? format(selected, "MMM d, yyyy") : <span>{placeholder}</span>}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">

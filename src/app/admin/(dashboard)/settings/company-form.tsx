@@ -38,7 +38,10 @@ export function CompanyForm({ tenant }: { tenant: Company }) {
   const [subscriptionToken, setSubscriptionToken] = useState("");
   const [subscriptionBaseUrl, setSubscriptionBaseUrl] = useState(tenant.subscription_base_url ?? "");
   const [subscriptionExpiresAt, setSubscriptionExpiresAt] = useState(() => {
-    if (tenant.subscription_token_expires_at) return tenant.subscription_token_expires_at.split("T")[0];
+    if (tenant.subscription_token_expires_at) {
+      const d = new Date(tenant.subscription_token_expires_at);
+      if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
+    }
     const d = new Date();
     d.setFullYear(d.getFullYear() + 1);
     d.setDate(d.getDate() - 1);
@@ -56,7 +59,7 @@ export function CompanyForm({ tenant }: { tenant: Company }) {
     (logoUrl || "") !== (tenant.logo_url ?? "") ||
     subscriptionToken !== "" ||
     subscriptionBaseUrl !== (tenant.subscription_base_url ?? "") ||
-    subscriptionExpiresAt !== (tenant.subscription_token_expires_at ? tenant.subscription_token_expires_at.split("T")[0] : "");
+    subscriptionExpiresAt !== (tenant.subscription_token_expires_at ? new Date(tenant.subscription_token_expires_at).toISOString().split("T")[0] : "");
 
   async function handleSave() {
     setSaving(true);
@@ -74,7 +77,7 @@ export function CompanyForm({ tenant }: { tenant: Company }) {
       if (subscriptionBaseUrl !== (tenant.subscription_base_url ?? "")) {
         payload.subscription_base_url = subscriptionBaseUrl || null;
       }
-      if (subscriptionExpiresAt !== (tenant.subscription_token_expires_at ? tenant.subscription_token_expires_at.split("T")[0] : "")) {
+      if (subscriptionExpiresAt !== (tenant.subscription_token_expires_at ? new Date(tenant.subscription_token_expires_at).toISOString().split("T")[0] : "")) {
         payload.subscription_token_expires_at = subscriptionExpiresAt ? new Date(subscriptionExpiresAt).toISOString() : null;
       }
       const data = await adminFetch<Record<string, unknown>>(`/tenants/${tenant.id}`, {
@@ -203,7 +206,7 @@ export function CompanyForm({ tenant }: { tenant: Company }) {
           {hasToken && <Badge variant="default">Configured</Badge>}
           {(() => {
             if (!subscriptionExpiresAt && !tenant.subscription_token_expires_at) return null;
-            const expiryStr = subscriptionExpiresAt || (tenant.subscription_token_expires_at ? tenant.subscription_token_expires_at.split("T")[0] : "");
+            const expiryStr = subscriptionExpiresAt || (tenant.subscription_token_expires_at ? new Date(tenant.subscription_token_expires_at).toISOString().split("T")[0] : "");
             if (!expiryStr) return null;
             const daysUntilExpiry = Math.ceil((new Date(expiryStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
             if (daysUntilExpiry <= 0) return <Badge variant="destructive">Expired</Badge>;
