@@ -128,6 +128,7 @@ const A2aAgentRow = z.object({
   a2a_tags: z.array(z.string()).default([]),
   skills: z.unknown().default([]),
   plugins: z.unknown().default([]),
+  identity: z.unknown().transform((v) => (v && typeof v === "object" ? v : null) as Record<string, unknown> | null).default(null),
 });
 
 type SkillFile = { path: string; content: string };
@@ -166,7 +167,7 @@ export async function buildAgentCard(opts: BuildAgentCardOptions): Promise<Agent
   const sql = getHttpClient();
 
   const rows = await sql`
-    SELECT id, slug, name, description, model, max_turns, max_runtime_seconds, a2a_tags, skills, plugins
+    SELECT id, slug, name, description, model, max_turns, max_runtime_seconds, a2a_tags, skills, plugins, identity
     FROM agents
     WHERE id = ${agentId}
       AND a2a_enabled = true
@@ -256,7 +257,8 @@ export async function buildAgentCard(opts: BuildAgentCardOptions): Promise<Agent
         scheme: "bearer",
       },
     },
-  };
+    ...(agent.identity ? { metadata: { "soulspec:identity": agent.identity } } : {}),
+  } as AgentCard;
 }
 
 // --- Run → A2A Task Mapper ---

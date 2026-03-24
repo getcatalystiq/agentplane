@@ -108,7 +108,12 @@ export function buildSkillRegistry(
 }
 
 export function buildVercelAiRunnerScript(config: SandboxConfig): string {
+  const identityPrefix = [config.agent.soul_md, config.agent.identity_md].filter(Boolean).join("\n\n");
   const systemPromptParts: string[] = [];
+
+  if (identityPrefix) {
+    systemPromptParts.push(identityPrefix);
+  }
 
   if (config.agent.description) {
     systemPromptParts.push(config.agent.description);

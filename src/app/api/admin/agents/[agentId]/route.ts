@@ -4,6 +4,7 @@ import { AgentRow, RunRow, UpdateAgentSchema } from "@/lib/validation";
 import { removeToolkitConnections } from "@/lib/composio";
 import { resolveEffectiveRunner, isPermissionModeAllowed } from "@/lib/models";
 import { withErrorHandler } from "@/lib/api";
+import { deriveIdentity } from "@/lib/identity";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -98,6 +99,8 @@ export const PATCH = withErrorHandler(async (request: NextRequest, context) => {
     ["plugins", "plugins", (v) => JSON.stringify(v)],
     ["a2a_enabled", "a2a_enabled"],
     ["a2a_tags", "a2a_tags"],
+    ["soul_md", "soul_md"],
+    ["identity_md", "identity_md"],
   ];
 
   for (const [field, col, transform] of fieldMap) {
@@ -106,6 +109,15 @@ export const PATCH = withErrorHandler(async (request: NextRequest, context) => {
       sets.push(`${col} = $${idx++}`);
       params.push(val);
     }
+  }
+
+  // Derive identity JSONB when soul_md or identity_md changes
+  if (input.soul_md !== undefined || input.identity_md !== undefined) {
+    const effectiveSoulMd = input.soul_md !== undefined ? input.soul_md : (current as Record<string, unknown>).soul_md as string | null;
+    const effectiveIdentityMd = input.identity_md !== undefined ? input.identity_md : (current as Record<string, unknown>).identity_md as string | null;
+    const { identity } = deriveIdentity(effectiveSoulMd, effectiveIdentityMd);
+    sets.push(`identity = $${idx++}`);
+    params.push(identity ? JSON.stringify(identity) : null);
   }
 
   if (sets.length === 0) {

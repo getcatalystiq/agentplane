@@ -284,6 +284,8 @@ export const UpdateAgentSchema = z.object({
   a2a_enabled: z.boolean(),
   a2a_tags: z.array(z.string().min(1).max(100)),
   slug: z.string().min(1).max(100).regex(/^[a-z0-9][a-z0-9-]*$/, "Slug must be lowercase alphanumeric with hyphens"),
+  soul_md: z.string().max(50_000).nullable(),
+  identity_md: z.string().max(50_000).nullable(),
 }).partial();
 
 export type CreateAgentInput = z.infer<typeof CreateAgentSchema>;
@@ -377,6 +379,9 @@ export const AgentRow = z.object({
   a2a_enabled: z.boolean().default(false),
   a2a_tags: z.array(z.string()).default([]),
   slug: z.string().catch(""),
+  soul_md: z.string().nullable().default(null),
+  identity_md: z.string().nullable().default(null),
+  identity: z.unknown().transform((v) => (v && typeof v === "object" ? v : null) as Record<string, unknown> | null).default(null),
   created_at: z.coerce.string(),
   updated_at: z.coerce.string(),
 });

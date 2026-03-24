@@ -121,6 +121,8 @@ export interface SandboxConfig {
     id: string;
     name: string;
     description?: string | null;
+    soul_md?: string | null;
+    identity_md?: string | null;
     git_repo_url: string | null;
     git_branch: string;
     model: string;
@@ -697,10 +699,13 @@ function buildRunnerScript(config: SandboxConfig): string {
     ...((hasSkills || hasPluginContent) ? { settingSources: ["project"] } : {}),
   };
 
+  const identityPrefix = [config.agent.soul_md, config.agent.identity_md].filter(Boolean).join("\n\n");
+  const effectivePrompt = identityPrefix ? `${identityPrefix}\n\n${config.prompt}` : config.prompt;
+
   return `
 ${claudeSdkPreamble()}
 const config = ${JSON.stringify(agentConfig)};
-const prompt = ${JSON.stringify(config.prompt)};
+const prompt = ${JSON.stringify(effectivePrompt)};
 
 async function main() {
   emit({
@@ -1053,10 +1058,13 @@ function buildSessionRunnerScript(config: SessionRunnerConfig): string {
     includePartialMessages: true,
   };
 
+  const sessionIdentityPrefix = [config.agent.soul_md, config.agent.identity_md].filter(Boolean).join("\n\n");
+  const sessionEffectivePrompt = sessionIdentityPrefix ? `${sessionIdentityPrefix}\n\n${config.prompt}` : config.prompt;
+
   return `
 ${claudeSdkPreamble()}
 const config = ${JSON.stringify(agentConfig)};
-const prompt = ${JSON.stringify(config.prompt)};
+const prompt = ${JSON.stringify(sessionEffectivePrompt)};
 const sdkSessionId = ${JSON.stringify(config.sdkSessionId)};
 
 async function main() {
