@@ -49,6 +49,7 @@ export const PUT = withErrorHandler(async (request: NextRequest, context) => {
     git_repo_url: input.git_repo_url,
     git_branch: input.git_branch,
     composio_toolkits: input.composio_toolkits,
+    composio_allowed_tools: input.composio_allowed_tools,
     model: input.model,
     runner: input.runner,
     allowed_tools: input.allowed_tools,
