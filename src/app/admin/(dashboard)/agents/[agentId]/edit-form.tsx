@@ -82,7 +82,6 @@ export function AgentEditForm({ agent }: { agent: Agent }) {
   }
 
   return (
-    <div className="space-y-6">
     <div className="rounded-lg border border-muted-foreground/25 p-5">
       <SectionHeader title="Details">
         {error && <span className="text-sm text-destructive mr-2">{error}</span>}
