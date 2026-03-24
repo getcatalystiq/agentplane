@@ -12,6 +12,7 @@
  * provides security, not the exec method.
  */
 import type { SandboxConfig } from "../sandbox";
+import { buildIdentityPrefix } from "../identity";
 import {
   buildPreamble,
   buildToolDefinitions,
@@ -108,7 +109,7 @@ export function buildSkillRegistry(
 }
 
 export function buildVercelAiRunnerScript(config: SandboxConfig): string {
-  const identityPrefix = [config.agent.soul_md, config.agent.identity_md].filter(Boolean).join("\n\n");
+  const identityPrefix = buildIdentityPrefix(config.agent);
   const systemPromptParts: string[] = [];
 
   if (identityPrefix) {

@@ -10,6 +10,12 @@
  * prevention, size limit enforcement, validation warnings.
  */
 
+// ── Shared Helpers ──
+
+export function buildIdentityPrefix(agent: { soul_md?: string | null; identity_md?: string | null }): string {
+  return [agent.soul_md, agent.identity_md].filter(Boolean).join("\n\n");
+}
+
 // ── Enum Constants ──
 
 export const COMMUNICATION_VERBOSITY = ["concise", "detailed"] as const;
@@ -78,6 +84,9 @@ const MAX_IDENTITY_PAYLOAD_BYTES = 25600; // 25KB
 
 // ── Expected sections for validation warnings ──
 
+// Section headers are normalized: lowercased, non-alphanumeric replaced with "_".
+// "## Voice & Tone" → "voice_tone", "## Values" → "values", etc.
+// Authors must use the exact headers: "## Voice & Tone", "## Values", "## Stance", "## Boundaries", "## Essence"
 const EXPECTED_SOUL_SECTIONS = ["voice_tone", "values", "stance", "boundaries", "essence"];
 const EXPECTED_IDENTITY_FIELDS = [
   "communication_verbosity",
@@ -167,7 +176,7 @@ export function parseIdentityMd(content: string): { fields: IdentityFields; esca
   return { fields, escalationLines, warnings };
 }
 
-export function parseEscalationPreferences(lines: string[]): EscalationPreference[] {
+export function parseEscalationPreferences(lines: string[], warnings?: ParseWarning[]): EscalationPreference[] {
   return lines.slice(0, 10).map(line => {
     const cleanLine = line.replace(/^-\s*/, "");
     // Accept both -> and → as arrow separators
@@ -176,6 +185,12 @@ export function parseEscalationPreferences(lines: string[]): EscalationPreferenc
     const condition = parts[0].trim().slice(0, 500);
     const rawAction = parts[1].trim().toLowerCase().replace(/\s+/g, "_");
     const action = rawAction === "escalate" ? "escalate" as const : "handle_independently" as const;
+    if (rawAction !== "escalate" && rawAction !== "handle_independently" && warnings) {
+      warnings.push({
+        file: "identity_md",
+        message: `Escalation action '${rawAction}' not recognized — defaulting to handle_independently`,
+      });
+    }
     return { condition, action };
   }).filter((e): e is EscalationPreference => e !== null);
 }
@@ -202,7 +217,7 @@ export function deriveIdentity(soulMd: string | null, identityMd: string | null)
   if (identityMd) {
     const { fields, escalationLines, warnings } = parseIdentityMd(identityMd);
     Object.assign(identityFields, fields);
-    escalationPrefs = parseEscalationPreferences(escalationLines);
+    escalationPrefs = parseEscalationPreferences(escalationLines, allWarnings);
     allWarnings.push(...warnings);
   }
 
@@ -250,12 +265,13 @@ export function deriveIdentity(soulMd: string | null, identityMd: string | null)
     return { identity: null, warnings: allWarnings };
   }
 
-  // Enforce size limit
+  // Enforce size limit — reject oversized payloads
   if (JSON.stringify(identity).length > MAX_IDENTITY_PAYLOAD_BYTES) {
     allWarnings.push({
       file: "identity_md",
       message: "Identity payload exceeds 25KB limit",
     });
+    return { identity: null, warnings: allWarnings };
   }
 
   return { identity, warnings: allWarnings };

@@ -60,6 +60,7 @@ export const PATCH = withErrorHandler(async (request: NextRequest, context) => {
   const sets: string[] = [];
   const params: unknown[] = [];
   let idx = 1;
+  let identityWarnings: { file: string; message: string }[] = [];
 
   // Reject permission_mode incompatible with Vercel AI SDK runner
   // Check whenever model, runner, OR permission_mode changes (prevents two-step bypass)
@@ -115,9 +116,10 @@ export const PATCH = withErrorHandler(async (request: NextRequest, context) => {
   if (input.soul_md !== undefined || input.identity_md !== undefined) {
     const effectiveSoulMd = input.soul_md !== undefined ? input.soul_md : (current as Record<string, unknown>).soul_md as string | null;
     const effectiveIdentityMd = input.identity_md !== undefined ? input.identity_md : (current as Record<string, unknown>).identity_md as string | null;
-    const { identity } = deriveIdentity(effectiveSoulMd, effectiveIdentityMd);
+    const parseResult = deriveIdentity(effectiveSoulMd, effectiveIdentityMd);
+    identityWarnings = parseResult.warnings;
     sets.push(`identity = $${idx++}`);
-    params.push(identity ? JSON.stringify(identity) : null);
+    params.push(parseResult.identity ? JSON.stringify(parseResult.identity) : null);
   }
 
   if (sets.length === 0) {
@@ -155,7 +157,10 @@ export const PATCH = withErrorHandler(async (request: NextRequest, context) => {
     }
   }
 
-  return NextResponse.json(updatedAgent);
+  return NextResponse.json({
+    ...updatedAgent,
+    ...(identityWarnings.length > 0 ? { identity_warnings: identityWarnings } : {}),
+  });
 });
 
 export const DELETE = withErrorHandler(async (_request: NextRequest, context) => {

@@ -258,7 +258,7 @@ export async function buildAgentCard(opts: BuildAgentCardOptions): Promise<Agent
       },
     },
     ...(agent.identity ? { metadata: { "soulspec:identity": agent.identity } } : {}),
-  } as AgentCard;
+  } as AgentCard & { metadata?: Record<string, unknown> };
 }
 
 // --- Run → A2A Task Mapper ---

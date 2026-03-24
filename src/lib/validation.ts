@@ -250,6 +250,8 @@ export const CreateAgentSchema = z.object({
   max_budget_usd: z.number().min(0.01).max(100.0).default(1.0),
   max_runtime_seconds: z.number().int().min(60).max(3600).default(600),
   a2a_enabled: z.boolean().default(false),
+  soul_md: z.string().max(50_000).nullable().optional(),
+  identity_md: z.string().max(50_000).nullable().optional(),
 }).refine(
   (data) => {
     if (data.runner === "claude-agent-sdk" && !supportsClaudeRunner(data.model)) {
