@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, lazy, Suspense } from "react";
+import { useCallback, useMemo, lazy, Suspense } from "react";
 import { useSWRConfig } from "swr";
 import { useApi } from "../../hooks/use-api";
+import { useAgentPlaneClient } from "../../hooks/use-client";
 import { useNavigation } from "../../hooks/use-navigation";
 import { Skeleton } from "../ui/skeleton";
 import { MetricCard } from "../ui/metric-card";
@@ -55,9 +56,15 @@ interface AgentDetailPageProps {
   a2aBaseUrl?: string;
   /** Tenant slug (needed for A2A URLs) */
   tenantSlug?: string;
+  /** Admin API base URL — when provided, enables Generate/Import/Export/Publish buttons on the Identity tab */
+  adminApiBaseUrl?: string;
+  /** Admin API key or auth token for admin endpoints */
+  adminApiKey?: string;
 }
 
-export function AgentDetailPage({ agentId, a2aBaseUrl, tenantSlug }: AgentDetailPageProps) {
+export type { AgentDetailPageProps };
+
+export function AgentDetailPage({ agentId, a2aBaseUrl, tenantSlug, adminApiBaseUrl, adminApiKey }: AgentDetailPageProps) {
   const { LinkComponent, basePath } = useNavigation();
   const { mutate } = useSWRConfig();
 
@@ -71,6 +78,52 @@ export function AgentDetailPage({ agentId, a2aBaseUrl, tenantSlug }: AgentDetail
   const invalidate = useCallback(() => {
     mutate(cacheKey);
   }, [mutate, cacheKey]);
+
+  // Admin API helpers for SoulSpec operations (only active when adminApiBaseUrl is provided)
+  const adminFetch = useCallback(async (path: string, options?: RequestInit) => {
+    if (!adminApiBaseUrl) throw new Error("Admin API not configured");
+    const res = await fetch(`${adminApiBaseUrl}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(adminApiKey ? { Authorization: `Bearer ${adminApiKey}` } : {}),
+        ...options?.headers,
+      },
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ error: { message: res.statusText } }));
+      throw new Error(body?.error?.message ?? `Request failed: ${res.status}`);
+    }
+    return res.json();
+  }, [adminApiBaseUrl, adminApiKey]);
+
+  const soulCallbacks = useMemo(() => {
+    if (!adminApiBaseUrl) return {};
+    return {
+      onGenerateSoul: async () => {
+        const result = await adminFetch(`/api/admin/agents/${agentId}/generate-soul`, { method: "POST" });
+        return { files: result.files as Record<string, string> };
+      },
+      onImportSoul: async (ref: string) => {
+        const [owner, name] = ref.split("/");
+        const result = await adminFetch(`/api/admin/agents/${agentId}/import-soul`, {
+          method: "POST",
+          body: JSON.stringify({ owner, name }),
+        });
+        return { files: result.imported_files as Record<string, string> };
+      },
+      onExportSoul: async () => {
+        const result = await adminFetch(`/api/admin/agents/${agentId}/export-soul`);
+        return { files: result.files as Record<string, string>, name: agent?.name ?? "agent" };
+      },
+      onPublishSoul: async (owner: string) => {
+        await adminFetch(`/api/admin/agents/${agentId}/publish-soul`, {
+          method: "POST",
+          body: JSON.stringify({ owner }),
+        });
+      },
+    };
+  }, [adminApiBaseUrl, adminFetch, agentId, agent?.name]);
 
   if (isLoading) {
     return (
@@ -146,7 +199,7 @@ export function AgentDetailPage({ agentId, a2aBaseUrl, tenantSlug }: AgentDetail
             label: "Identity",
             content: (
               <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-                <AgentIdentityTab agent={agent} FileTreeEditor={FileTreeEditor} onSaved={invalidate} />
+                <AgentIdentityTab agent={agent} FileTreeEditor={FileTreeEditor} onSaved={invalidate} {...soulCallbacks} />
               </Suspense>
             ),
           },

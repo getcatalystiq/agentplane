@@ -134,12 +134,12 @@ export function AgentIdentityTab({
     const newFiles: FlatFile[] = [];
     for (const { path, field } of FILE_MAP) {
       const content = responseFiles[field] ?? responseFiles[path];
-      if (content) {
-        newFiles.push({ path, content });
-      }
+      newFiles.push({ path, content: content ?? "" });
     }
     if (newFiles.length > 0) {
       setOverrideFiles(newFiles);
+      // Bump savedVersion so FileTreeEditor re-initializes with new content and sees it as dirty
+      setSavedVersion((v) => v + 1);
     }
   }
 

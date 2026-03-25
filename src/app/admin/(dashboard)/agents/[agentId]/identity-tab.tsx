@@ -108,12 +108,11 @@ export function IdentityTab({ agent }: { agent: Agent }) {
     const newFiles: FlatFile[] = [];
     for (const { path, field } of FILE_MAP) {
       const content = responseFiles[field] ?? responseFiles[path];
-      if (content) {
-        newFiles.push({ path, content });
-      }
+      newFiles.push({ path, content: content ?? "" });
     }
     if (newFiles.length > 0) {
       setOverrideFiles(newFiles);
+      setSavedVersion((v) => v + 1);
     }
   }
 
