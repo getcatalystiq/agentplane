@@ -99,6 +99,8 @@ interface FileTreeEditorProps {
   newFileTemplate?: { filename: string; content: string };
   savedVersion?: number;
   fixedStructure?: boolean;
+  /** Extra buttons rendered next to Save in the header */
+  headerActions?: React.ReactNode;
 }
 
 export function FileTreeEditor({
@@ -113,6 +115,7 @@ export function FileTreeEditor({
   newFileTemplate = { filename: "SKILL.md", content: "---\nname: New Skill\ndescription: Describe when this skill should be triggered\n---\n\n# Instructions\n\nDescribe what this skill does...\n" },
   savedVersion,
   fixedStructure = false,
+  headerActions,
 }: FileTreeEditorProps) {
   const [files, setFiles] = useState<FlatFile[]>(initialFiles);
   const [selectedPath, setSelectedPath] = useState<string | null>(
@@ -312,11 +315,14 @@ export function FileTreeEditor({
           {isDirty && !readOnly && <Badge variant="destructive" className="text-xs">Unsaved changes</Badge>}
           {readOnly && <Badge variant="secondary" className="text-xs">Read-only</Badge>}
         </div>
-        {!readOnly && !hideSave && (
-          <Button onClick={handleSave} disabled={saving || !isDirty} size="sm">
-            {saving ? "Saving..." : saveLabel}
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {headerActions}
+          {!readOnly && !hideSave && (
+            <Button onClick={handleSave} disabled={saving || !isDirty} size="sm">
+              {saving ? "Saving..." : saveLabel}
+            </Button>
+          )}
+        </div>
       </div>
       <div className="flex gap-4 min-h-[500px]">
         {/* File tree */}

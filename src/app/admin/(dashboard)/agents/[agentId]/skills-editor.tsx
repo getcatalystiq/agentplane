@@ -69,12 +69,6 @@ export function SkillsEditor({ agentId, initialSkills }: { agentId: string; init
 
   return (
     <div className="rounded-lg border border-muted-foreground/25 p-5">
-      <div className="flex items-center justify-between mb-4">
-        <div />
-        <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
-          Import from skills.sh
-        </Button>
-      </div>
       <FileTreeEditor
         initialFiles={flatFiles}
         onSave={handleSave}
@@ -82,6 +76,11 @@ export function SkillsEditor({ agentId, initialSkills }: { agentId: string; init
         saveLabel="Save Skills"
         addFolderLabel="Folder"
         newFileTemplate={{ filename: "SKILL.md", content: "---\nname: New Skill\ndescription: Describe when this skill should be triggered\n---\n\n# Instructions\n\nDescribe what this skill does...\n" }}
+        headerActions={
+          <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
+            Import from skills.sh
+          </Button>
+        }
       />
       <ImportSkillDialog
         open={importOpen}

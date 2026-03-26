@@ -64,11 +64,6 @@ export function AgentSkillManager({ agentId, initialSkills, onSaved }: Props) {
 
   return (
     <div>
-      <div className="flex items-center justify-end mb-4">
-        <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
-          Import from skills.sh
-        </Button>
-      </div>
       <FileTreeEditor
         initialFiles={initialFiles}
         onSave={handleSave}
@@ -79,6 +74,11 @@ export function AgentSkillManager({ agentId, initialSkills, onSaved }: Props) {
           filename: "SKILL.md",
           content: "---\nname: New Skill\ndescription: Describe when this skill should be triggered\n---\n\n# Instructions\n\nDescribe what this skill does...\n",
         }}
+        headerActions={
+          <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
+            Import from skills.sh
+          </Button>
+        }
       />
       <ImportSkillDialog
         open={importOpen}

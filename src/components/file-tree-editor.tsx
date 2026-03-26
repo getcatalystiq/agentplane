@@ -135,6 +135,8 @@ interface FileTreeEditorProps {
   savedVersion?: number;
   /** When true, hides add/delete buttons but still allows content editing */
   fixedStructure?: boolean;
+  /** Extra buttons rendered next to Save in the header */
+  headerActions?: React.ReactNode;
 }
 
 export function FileTreeEditor({
@@ -149,6 +151,7 @@ export function FileTreeEditor({
   newFileTemplate = { filename: "SKILL.md", content: "# New\n\nDescribe this...\n" },
   savedVersion,
   fixedStructure = false,
+  headerActions,
 }: FileTreeEditorProps) {
   const [files, setFiles] = useState<FlatFile[]>(initialFiles);
   const [selectedPath, setSelectedPath] = useState<string | null>(
@@ -358,11 +361,14 @@ export function FileTreeEditor({
           {isDirty && !readOnly && <Badge variant="destructive" className="text-xs">Unsaved changes</Badge>}
           {readOnly && <Badge variant="secondary" className="text-xs">Read-only</Badge>}
         </div>
-        {!readOnly && !hideSave && (
-          <Button onClick={handleSave} disabled={saving || !isDirty} size="sm">
-            {saving ? "Saving..." : saveLabel}
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {headerActions}
+          {!readOnly && !hideSave && (
+            <Button onClick={handleSave} disabled={saving || !isDirty} size="sm">
+              {saving ? "Saving..." : saveLabel}
+            </Button>
+          )}
+        </div>
       </div>
       <div>
         <div className="flex gap-4 min-h-[500px]">
