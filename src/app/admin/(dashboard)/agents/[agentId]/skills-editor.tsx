@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
 import { FileTreeEditor } from "@/components/file-tree-editor";
 import type { FlatFile } from "@/components/file-tree-editor";
 import { adminFetch } from "@/app/admin/lib/api";
+import { ImportSkillDialog } from "./import-skill-dialog";
 
 interface AgentSkill {
   folder: string;
@@ -13,16 +15,30 @@ interface AgentSkill {
 
 export function SkillsEditor({ agentId, initialSkills }: { agentId: string; initialSkills: AgentSkill[] }) {
   const router = useRouter();
+  const [importOpen, setImportOpen] = useState(false);
+  const [extraSkills, setExtraSkills] = useState<AgentSkill[]>([]);
+
+  // Merge server skills + locally imported (unsaved) skills into flat files
+  const allSkills = useMemo(() => [...initialSkills, ...extraSkills], [initialSkills, extraSkills]);
 
   const flatFiles = useMemo<FlatFile[]>(() =>
-    initialSkills.flatMap(s =>
+    allSkills.flatMap(s =>
       s.files.map(f => ({
         path: s.folder === "(root)" ? f.path : `${s.folder}/${f.path}`,
         content: f.content,
       })),
     ),
-    [initialSkills],
+    [allSkills],
   );
+
+  const existingFolders = useMemo(
+    () => allSkills.map((s) => s.folder),
+    [allSkills],
+  );
+
+  function handleImported(skill: { folder: string; files: Array<{ path: string; content: string }> }) {
+    setExtraSkills((prev) => [...prev, skill]);
+  }
 
   async function handleSave(files: FlatFile[]) {
     // Convert flat files back to grouped { folder, files }[] for the API
@@ -47,19 +63,32 @@ export function SkillsEditor({ agentId, initialSkills }: { agentId: string; init
       method: "PATCH",
       body: JSON.stringify({ skills }),
     });
+    setExtraSkills([]); // Clear local imports after save
     router.refresh();
   }
 
   return (
     <div className="rounded-lg border border-muted-foreground/25 p-5">
-    <FileTreeEditor
-      initialFiles={flatFiles}
-      onSave={handleSave}
-      title="Skills"
-      saveLabel="Save Skills"
-      addFolderLabel="Folder"
-      newFileTemplate={{ filename: "SKILL.md", content: "---\nname: New Skill\ndescription: Describe when this skill should be triggered\n---\n\n# Instructions\n\nDescribe what this skill does...\n" }}
-    />
+      <div className="flex items-center justify-between mb-4">
+        <div />
+        <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
+          Import from skills.sh
+        </Button>
+      </div>
+      <FileTreeEditor
+        initialFiles={flatFiles}
+        onSave={handleSave}
+        title="Skills"
+        saveLabel="Save Skills"
+        addFolderLabel="Folder"
+        newFileTemplate={{ filename: "SKILL.md", content: "---\nname: New Skill\ndescription: Describe when this skill should be triggered\n---\n\n# Instructions\n\nDescribe what this skill does...\n" }}
+      />
+      <ImportSkillDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onImported={handleImported}
+        existingFolders={existingFolders}
+      />
     </div>
   );
 }
