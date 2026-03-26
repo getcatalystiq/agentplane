@@ -98,6 +98,41 @@ export class RunsResource {
     }
   }
 
+  /**
+   * Stream events from an already-running run.
+   *
+   * Connects to `GET /api/runs/:id/stream` and returns a `RunStream`
+   * (async iterable of `StreamEvent`). Useful for reconnecting to a run
+   * that is already in progress.
+   *
+   * If the run has already completed, the endpoint returns the stored
+   * transcript and the stream finishes immediately.
+   */
+  async stream(
+    runId: string,
+    options?: { offset?: number; signal?: AbortSignal },
+  ): Promise<RunStream> {
+    const query: Record<string, string | number | undefined> = {};
+    if (options?.offset != null) query.offset = options.offset;
+
+    const streamReqOpts: { query: typeof query; signal?: AbortSignal } = { query };
+    if (options?.signal) streamReqOpts.signal = options.signal;
+
+    const response = await this._client._requestStream(
+      "GET",
+      `/api/runs/${runId}/stream`,
+      streamReqOpts,
+    );
+
+    const runStreamOpts: import("../streaming").RunStreamOptions = {
+      pollRun: (id) => this.get(id),
+      fetchTranscript: (id, sig) => this._fetchTranscriptResponse(id, sig),
+    };
+    if (options?.signal) runStreamOpts.signal = options.signal;
+
+    return new RunStream(response, runStreamOpts);
+  }
+
   /** Get a run by ID. */
   async get(runId: string): Promise<Run> {
     return this._client._request<Run>("GET", `/api/runs/${runId}`);

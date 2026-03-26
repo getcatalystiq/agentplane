@@ -75,7 +75,7 @@ src/
       agents/             # CRUD + run creation + skills + plugins + Composio OAuth + MCP connections
       composio/           # tenant-scoped Composio toolkit + tool discovery
       internal/           # internal endpoints (run transcript upload from sandbox)
-      runs/               # run list, status (NDJSON stream), cancel, transcript
+      runs/               # run list, status (NDJSON stream), cancel, transcript, stream reconnect
       sessions/           # tenant-scoped session CRUD + message sending (NDJSON stream)
       admin/
         agents/           # admin agent CRUD + connectors + MCP connections + plugin suggestions + SoulSpec identity (validate-soul, import-soul, export-soul, publish-soul, generate-soul)
@@ -107,7 +107,7 @@ src/
         agents/           # agent list + tabbed detail (General, Identity, Connectors, Skills, Plugins, Schedules, Runs)
         mcp-servers/      # custom MCP server management
         plugin-marketplaces/  # marketplace list + detail + plugin editor (tabbed: Agents, Skills, Connectors)
-        runs/             # run list + detail (transcript viewer, cancel button, run source badge, source filter)
+        runs/             # run list + detail (transcript viewer, cancel button, run source badge, source filter, live streaming, polling)
         settings/         # company settings (name, slug, timezone, budget, logo, API keys, danger zone)
   db/
     index.ts              # DB client (Pool, query helpers, RLS context, transactions)
@@ -189,7 +189,7 @@ sdk/                      # TypeScript SDK (published as `@getcatalystiq/agent-p
     errors.ts             # AgentPlaneError + StreamDisconnectedError
     streaming.ts          # NDJSON parser + RunStream (AsyncIterable)
     resources/
-      runs.ts             # create, createAndWait, get, list, cancel, transcript
+      runs.ts             # create, createAndWait, stream, get, list, cancel, transcript
       agents.ts           # CRUD + nested skills/plugins/connectors/customConnectors
       skills.ts           # agent skill CRUD (list, get, create, update, delete)
       plugins.ts          # agent plugin management (list, add, remove)
@@ -234,6 +234,7 @@ Neon Postgres with Row-Level Security (RLS). Tables: `tenants`, `api_keys`, `age
 | `BLOB_READ_WRITE_TOKEN` | No | Vercel Blob (transcript + asset storage) |
 | `COMPOSIO_API_KEY` | No | Composio MCP tool integration (optional if not using Composio toolkits) |
 | `CRON_SECRET` | No | Vercel Cron authentication (must be manually set; random string ≥16 chars) |
+| `BRAINTRUST_API_KEY` | No | Braintrust observability; when set, sandbox runners auto-trace LLM calls to Braintrust |
 
 ## API Authentication
 
@@ -252,7 +253,8 @@ All routes (except `/api/health`) require `Authorization: Bearer <api_key>`. Adm
 
 ## Sandbox & Runner
 
-- Sandboxes are created from a pre-built SDK snapshot (with `@anthropic-ai/claude-agent-sdk`, `ai`, `@ai-sdk/mcp`, `@modelcontextprotocol/sdk`, `zod` pre-installed); falls back to fresh npm install if no snapshot exists
+- Sandboxes are created from a pre-built SDK snapshot (with `@anthropic-ai/claude-agent-sdk`, `ai`, `@ai-sdk/mcp`, `@modelcontextprotocol/sdk`, `zod`, `braintrust` pre-installed); falls back to fresh npm install if no snapshot exists
+- **Braintrust tracing:** When `BRAINTRUST_API_KEY` is set, sandbox runners call `initLogger()` before loading AI SDKs so all LLM calls are auto-traced to the "AgentPlane" project; gracefully skipped if braintrust is unavailable
 - SDK snapshots are refreshed daily at 4am UTC via `/api/cron/refresh-snapshot`; old snapshots (>24h) are cleaned up automatically
 - **Dual runner architecture:** Claude Agent SDK for Anthropic models (session resumption, permission modes, `.claude/` conventions), Vercel AI SDK `ToolLoopAgent` for all other providers
 - Vercel AI SDK runner uses `createGateway({ apiKey })` from `ai` package; `AI_GATEWAY_API_KEY` env var set in sandbox
@@ -268,7 +270,7 @@ All routes (except `/api/health`) require `Authorization: Bearer <api_key>`. Adm
 - When MCP servers are present, `allowedTools` is suppressed so `mcp__*` tool names aren't blocked
 - SoulSpec identity files → `.soul/SOUL.md`, `.soul/IDENTITY.md`, `.soul/STYLE.md`, `.soul/AGENTS.md`, `.soul/HEARTBEAT.md` (injected into sandbox alongside skills/plugins)
 - Plugin skill files → `.claude/skills/<plugin-name>-<subfolder>/<filename>`; plugin agent files → `.claude/agents/<plugin-name>-<agent>.md`
-- Network allowlist: `ai-gateway.vercel.sh`, `*.composio.dev`, `*.firecrawl.dev`, `*.githubusercontent.com`, `html.duckduckgo.com`, `registry.npmjs.org`, platform API host, custom MCP server hosts, AgentCo callback hosts
+- Network allowlist: `ai-gateway.vercel.sh`, `*.composio.dev`, `*.firecrawl.dev`, `*.githubusercontent.com`, `html.duckduckgo.com`, `api.braintrust.dev`, `registry.npmjs.org`, platform API host, custom MCP server hosts, AgentCo callback hosts
 - Runner ALWAYS uploads transcript to platform via `/api/internal/runs/:id/transcript` with a run-scoped bearer token (not just detached runs)
 - AgentCo callback bridge: stdio MCP server injected into sandbox when A2A request includes callback data; env vars passed explicitly via `StdioClientTransport({ env })` for subprocess inheritance
 - Model catalog (`/api/admin/models`, `/api/models`): fetches from `GET https://ai-gateway.vercel.sh/v1/models`, 15-min cache, Zod validation, stale-on-error fallback

@@ -11,6 +11,29 @@
  */
 
 /**
+ * Braintrust initialization snippet. Inserted early in the runner so
+ * `initLogger` patches AI SDK calls before any LLM interaction.
+ * Requires BRAINTRUST_API_KEY env var; silently skips if absent.
+ */
+export function buildBraintrustInit(): string {
+  return `
+// --- Braintrust tracing (optional) ---
+if (process.env.BRAINTRUST_API_KEY) {
+  try {
+    const bt = await import('braintrust');
+    bt.initLogger({
+      projectName: 'AgentPlane',
+      apiKey: process.env.BRAINTRUST_API_KEY,
+      asyncFlush: true,
+    });
+  } catch (e) {
+    // Braintrust not available or init failed — continue without tracing
+  }
+}
+`;
+}
+
+/**
  * Common preamble: workspace setup, validatePath, emit function.
  * Assumes the caller has already emitted the static imports (fs, path, child_process).
  */

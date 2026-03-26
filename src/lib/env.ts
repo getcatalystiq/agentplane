@@ -22,6 +22,9 @@ const EnvSchema = z.object({
   // Vercel AI Gateway
   AI_GATEWAY_API_KEY: z.string().min(1, "AI_GATEWAY_API_KEY is required"),
 
+  // Braintrust (observability)
+  BRAINTRUST_API_KEY: z.string().optional(),
+
   // Runtime
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
 });

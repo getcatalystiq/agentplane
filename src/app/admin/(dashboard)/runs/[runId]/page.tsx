@@ -1,13 +1,8 @@
 import { notFound } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { MetricCard } from "@/components/ui/metric-card";
-import { LocalDate } from "@/components/local-date";
 import { z } from "zod";
 import { queryOne } from "@/db";
 import { RunRow } from "@/lib/validation";
-import { TranscriptViewer } from "./transcript-viewer";
-import { CancelRunButton } from "./cancel-run-button";
+import { LiveRunDetail } from "./live-run-detail";
 
 export const dynamic = "force-dynamic";
 
@@ -62,99 +57,11 @@ export default async function RunDetailPage({
   }
 
   return (
-    <div className="space-y-6">
-      {(run.status === "running" || run.status === "pending") && (
-        <div className="flex items-center justify-end">
-          <CancelRunButton runId={run.id} />
-        </div>
-      )}
-
-      {/* A2A request origin */}
-      {run.triggered_by === "a2a" && requestedByKeyName && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Badge variant="outline" className="text-[10px]">A2A</Badge>
-          <span>Requested by <span className="font-medium text-foreground">{requestedByKeyName}</span></span>
-        </div>
-      )}
-
-      {/* Metadata cards */}
-      <div className={`grid gap-4 ${run.result_summary ? "grid-cols-5" : "grid-cols-4"}`}>
-        {run.result_summary && (
-          <MetricCard label="Result Summary">
-            <span className="line-clamp-1">{run.result_summary}</span>
-            <p className="text-xs text-muted-foreground mt-0.5 font-normal">{run.status}</p>
-          </MetricCard>
-        )}
-        <MetricCard label="Model">
-          <span className="font-mono text-xs">{agentModel?.model || "—"}</span>
-          <p className="text-xs text-muted-foreground mt-0.5 font-normal">
-            <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${run.runner === "vercel-ai-sdk" ? "bg-blue-500/10 text-blue-400" : "bg-orange-500/10 text-orange-400"}`}>
-              {run.runner === "vercel-ai-sdk" ? "AI SDK" : "Claude SDK"}
-            </span>
-          </p>
-        </MetricCard>
-        <MetricCard label="Cost"><span className="font-mono">${run.cost_usd != null ? run.cost_usd.toFixed(4) : "—"}</span></MetricCard>
-        <MetricCard label="Turns">{run.num_turns}</MetricCard>
-        <MetricCard label="Duration">
-          {run.duration_ms > 0 ? `${(run.duration_ms / 1000).toFixed(1)}s` : "—"}
-        </MetricCard>
-        <MetricCard label="Tokens">
-          {(run.total_input_tokens + run.total_output_tokens).toLocaleString()}
-          <p className="text-xs text-muted-foreground mt-0.5 font-normal">
-            {run.total_input_tokens.toLocaleString()} in / {run.total_output_tokens.toLocaleString()} out
-          </p>
-        </MetricCard>
-      </div>
-
-      {/* Errors */}
-      {run.error_messages.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base text-destructive">Errors</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {run.error_type && (
-              <Badge variant="destructive">{run.error_type}</Badge>
-            )}
-            {run.error_messages.map((msg, i) => (
-              <pre key={i} className="whitespace-pre-wrap text-sm text-destructive font-mono bg-destructive/10 rounded-md p-3">
-                {msg}
-              </pre>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Transcript */}
-      <TranscriptViewer transcript={transcript} prompt={run.prompt} />
-
-      {/* Raw metadata */}
-      <Card>
-        <details>
-          <summary className="flex items-center justify-between px-6 py-4 cursor-pointer list-none hover:bg-muted/30 transition-colors rounded-xl">
-            <span className="text-base font-semibold">Metadata</span>
-            <span className="text-xs text-muted-foreground details-marker">▼</span>
-          </summary>
-          <div className="px-6 pb-6">
-            <dl className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
-              <dt className="text-muted-foreground">Run ID</dt>
-              <dd className="font-mono">{run.id}</dd>
-              <dt className="text-muted-foreground">Agent ID</dt>
-              <dd className="font-mono">{run.agent_id}</dd>
-              <dt className="text-muted-foreground">Company ID</dt>
-              <dd className="font-mono">{run.tenant_id}</dd>
-              <dt className="text-muted-foreground">Sandbox ID</dt>
-              <dd className="font-mono">{run.sandbox_id || "—"}</dd>
-              <dt className="text-muted-foreground">Started</dt>
-              <dd><LocalDate value={run.started_at} /></dd>
-              <dt className="text-muted-foreground">Completed</dt>
-              <dd><LocalDate value={run.completed_at} /></dd>
-              <dt className="text-muted-foreground">Created</dt>
-              <dd><LocalDate value={run.created_at} /></dd>
-            </dl>
-          </div>
-        </details>
-      </Card>
-    </div>
+    <LiveRunDetail
+      run={run}
+      transcript={transcript}
+      agentModel={agentModel?.model ?? null}
+      requestedByKeyName={requestedByKeyName}
+    />
   );
 }

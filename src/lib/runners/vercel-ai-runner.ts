@@ -14,6 +14,7 @@
 import type { SandboxConfig } from "../sandbox";
 import { buildIdentityPrefix } from "../identity";
 import {
+  buildBraintrustInit,
   buildPreamble,
   buildToolDefinitions,
   buildMcpSetup,
@@ -139,6 +140,7 @@ const prompt = ${JSON.stringify(config.prompt)};
 const maxTurns = ${config.agent.max_turns || 10};
 const systemPrompt = ${JSON.stringify(systemPrompt)};
 
+${buildBraintrustInit()}
 ${buildPreamble()}
 ${buildToolDefinitions(JSON.stringify(skillRegistry))}
 ${buildMcpSetup(JSON.stringify(mcpErrors))}

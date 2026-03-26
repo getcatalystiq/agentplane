@@ -6,6 +6,7 @@ export type {
   AgentPlaneProviderProps,
   PlaygroundStream,
   PlaygroundStreamEvent,
+  StreamEventLike,
 } from "./types";
 
 // Provider
@@ -17,6 +18,7 @@ export {
   useAuthError,
   useNavigation,
   useApi,
+  useRunStream,
 } from "./hooks";
 
 // Utilities
@@ -123,3 +125,19 @@ export type { PlaygroundPageProps } from "./components/pages/playground-page";
 export { ModelSelector } from "./components/ui/model-selector";
 
 export { ToolkitMultiselect } from "./components/ui/toolkit-multiselect";
+
+// Toast
+export { Toaster } from "./components/ui/toaster";
+export { useToast, toast } from "./hooks/use-toast";
+export type { ToasterToast, ToastVariant } from "./hooks/use-toast";
+export {
+  ToastProvider,
+  ToastViewport,
+  Toast,
+  ToastTitle,
+  ToastDescription,
+  ToastClose,
+  ToastAction,
+  toastVariants,
+} from "./components/ui/toast";
+export type { ToastProps, ToastActionElement } from "./components/ui/toast";

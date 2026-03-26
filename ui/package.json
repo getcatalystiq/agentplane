@@ -92,6 +92,7 @@
   },
   "dependencies": {
     "@radix-ui/react-popover": "^1.0.0",
+    "@radix-ui/react-toast": "^1.2.15",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.0.0",
     "cmdk": "^1.0.0",

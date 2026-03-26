@@ -13,6 +13,7 @@ import type { SandboxConfig } from "../sandbox";
 import { buildIdentityPrefix } from "../identity";
 import { buildSkillsPrompt, buildSkillRegistry } from "./vercel-ai-runner";
 import {
+  buildBraintrustInit,
   buildPreamble,
   buildToolDefinitions,
   buildMcpSetup,
@@ -61,6 +62,7 @@ const prompt = ${JSON.stringify(config.prompt)};
 const maxTurns = ${config.maxTurns || 10};
 const systemPrompt = ${JSON.stringify(systemPrompt)};
 
+${buildBraintrustInit()}
 ${buildPreamble()}
 
 // --- Session history management ---

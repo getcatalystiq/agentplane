@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSWRConfig } from "swr";
 import { useApi } from "../../hooks/use-api";
 import { useAgentPlaneClient } from "../../hooks/use-client";
+import { useRunStream } from "../../hooks/use-run-stream";
+import { useToast } from "../../hooks/use-toast";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "../ui/card";
@@ -60,6 +62,7 @@ export interface RunDetailPageProps {
 
 export function RunDetailPage({ runId, initialData, initialTranscript }: RunDetailPageProps) {
   const { mutate } = useSWRConfig();
+  const { toast } = useToast();
 
   const { data: run, error, isLoading } = useApi<RunDetail>(
     `run-${runId}`,
@@ -72,6 +75,23 @@ export function RunDetailPage({ runId, initialData, initialTranscript }: RunDeta
     (client) => client.runs.transcriptArray(runId) as Promise<TranscriptEvent[]>,
     initialTranscript ? { fallbackData: initialTranscript } : undefined,
   );
+
+  const isActive = run?.status === "running" || run?.status === "pending";
+  const { events, isStreaming, terminalEvent, streamingText } = useRunStream(
+    runId,
+    run?.status ?? "",
+  );
+
+  // When stream ends, show toast and revalidate run data
+  useEffect(() => {
+    if (!terminalEvent) return;
+    toast({
+      title: terminalEvent.type === "result" ? "Run completed" : "Run failed",
+      variant: terminalEvent.type === "result" ? "success" : "destructive",
+    });
+    mutate(`run-${runId}`);
+    mutate(`transcript-${runId}`);
+  }, [terminalEvent, toast, mutate, runId]);
 
   if (error) {
     return (
@@ -126,15 +146,31 @@ export function RunDetailPage({ runId, initialData, initialTranscript }: RunDeta
             </span>
           </p>
         </MetricCard>
-        <MetricCard label="Cost"><span className="font-mono">${run.cost_usd != null ? run.cost_usd.toFixed(4) : "\u2014"}</span></MetricCard>
-        <MetricCard label="Turns">{run.num_turns}</MetricCard>
+        <MetricCard label="Cost">
+          <span className="font-mono">
+            ${(() => {
+              const cost = terminalEvent?.cost_usd ?? run.cost_usd;
+              return cost != null ? Number(cost).toFixed(4) : "\u2014";
+            })()}
+          </span>
+        </MetricCard>
+        <MetricCard label="Turns">
+          {(terminalEvent?.num_turns as number | undefined) ?? run.num_turns}
+        </MetricCard>
         <MetricCard label="Duration">
-          {run.duration_ms > 0 ? `${(run.duration_ms / 1000).toFixed(1)}s` : "\u2014"}
+          {(() => {
+            const ms = (terminalEvent?.duration_ms as number | undefined) ?? run.duration_ms;
+            return ms > 0 ? `${(ms / 1000).toFixed(1)}s` : "\u2014";
+          })()}
         </MetricCard>
         <MetricCard label="Tokens">
-          {(run.total_input_tokens + run.total_output_tokens).toLocaleString()}
+          {(() => {
+            const inTok = (terminalEvent?.total_input_tokens as number | undefined) ?? run.total_input_tokens;
+            const outTok = (terminalEvent?.total_output_tokens as number | undefined) ?? run.total_output_tokens;
+            return (inTok + outTok).toLocaleString();
+          })()}
           <p className="text-xs text-muted-foreground mt-0.5 font-normal">
-            {run.total_input_tokens.toLocaleString()} in / {run.total_output_tokens.toLocaleString()} out
+            {((terminalEvent?.total_input_tokens as number | undefined) ?? run.total_input_tokens).toLocaleString()} in / {((terminalEvent?.total_output_tokens as number | undefined) ?? run.total_output_tokens).toLocaleString()} out
           </p>
         </MetricCard>
       </div>
@@ -159,7 +195,21 @@ export function RunDetailPage({ runId, initialData, initialTranscript }: RunDeta
       )}
 
       {/* Transcript */}
-      <TranscriptViewer transcript={transcript || []} prompt={run.prompt} />
+      <TranscriptViewer
+        transcript={isActive && isStreaming ? events : transcript || []}
+        prompt={run.prompt}
+        isStreaming={isActive && isStreaming}
+      />
+
+      {/* Streaming text accumulator */}
+      {isActive && streamingText && (
+        <div className="rounded-lg border bg-muted/30 p-4">
+          <pre className="whitespace-pre-wrap text-sm font-mono">
+            {streamingText}
+            <span className="inline-block w-2 h-4 ml-0.5 bg-foreground/70 animate-pulse align-text-bottom" />
+          </pre>
+        </div>
+      )}
 
       {/* Raw metadata */}
       <Card>

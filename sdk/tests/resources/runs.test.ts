@@ -206,3 +206,64 @@ describe("RunsResource.createAndWait", () => {
     expect(mockFetch).toHaveBeenCalledTimes(2); // stream + single GET (already terminal)
   });
 });
+
+describe("RunsResource.stream", () => {
+  it("streams events from an already-running run", async () => {
+    const mockFetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      body: createStreamBody([
+        '{"type":"run_started","run_id":"run_1","agent_id":"a1","model":"claude","timestamp":"2026-01-01T00:00:00Z"}\n',
+        '{"type":"assistant","message":{"content":[{"type":"text","text":"Hello"}]}}\n',
+        '{"type":"result","subtype":"success","total_cost_usd":0.01}\n',
+      ]),
+    });
+
+    const client = new AgentPlane({
+      apiKey: "ap_live_test1234567890abcdef12345678",
+      baseUrl: "http://localhost:3000",
+      fetch: mockFetch as unknown as typeof fetch,
+    });
+
+    const stream = await client.runs.stream("run_1");
+    const events = [];
+    for await (const event of stream) {
+      events.push(event);
+    }
+
+    expect(events).toHaveLength(3);
+    expect(events[0]!.type).toBe("run_started");
+    expect(events[2]!.type).toBe("result");
+
+    // Verify it called GET /api/runs/run_1/stream
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const [url] = mockFetch.mock.calls[0]!;
+    expect(url.toString()).toContain("/api/runs/run_1/stream");
+  });
+
+  it("passes offset as query parameter", async () => {
+    const mockFetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      body: createStreamBody([
+        '{"type":"result","subtype":"success","total_cost_usd":0.01}\n',
+      ]),
+    });
+
+    const client = new AgentPlane({
+      apiKey: "ap_live_test1234567890abcdef12345678",
+      baseUrl: "http://localhost:3000",
+      fetch: mockFetch as unknown as typeof fetch,
+    });
+
+    const stream = await client.runs.stream("run_1", { offset: 42 });
+    for await (const _event of stream) {
+      // consume
+    }
+
+    const [url] = mockFetch.mock.calls[0]!;
+    expect(url.toString()).toContain("offset=42");
+  });
+});

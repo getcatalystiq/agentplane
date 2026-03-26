@@ -1,10 +1,6 @@
-import Link from "next/link";
 import { PaginationBar, parsePaginationParams } from "@/components/ui/pagination-bar";
-import { RunStatusBadge } from "@/components/ui/run-status-badge";
-import { RunSourceBadge } from "@/components/ui/run-source-badge";
 import { SourceFilter } from "./source-filter";
-import { AdminTable, AdminTableHead, AdminTableRow, Th, EmptyRow } from "@/components/ui/admin-table";
-import { LocalDate } from "@/components/local-date";
+import { RunsListClient } from "./runs-list-client";
 import { query, queryOne } from "@/db";
 import { RunTriggeredBySchema } from "@/lib/validation";
 import { getActiveTenantId } from "@/lib/active-tenant";
@@ -89,58 +85,21 @@ export default async function RunsPage({
   const total = countResult?.total ?? 0;
 
   return (
-    <div>
-      <div className="flex items-center mb-6">
-        <SourceFilter current={sourceFilter} />
-      </div>
-      <AdminTable className="overflow-x-auto" footer={
+    <RunsListClient
+      initialRuns={runs}
+      total={total}
+      page={page}
+      pageSize={pageSize}
+      sourceFilter={sourceFilter}
+      sourceFilterBar={<SourceFilter current={sourceFilter} />}
+      paginationBar={
         <PaginationBar
           page={page}
           pageSize={pageSize}
           total={total}
           buildHref={(p, ps) => `/admin/runs?page=${p}&pageSize=${ps}${sourceFilter ? `&source=${sourceFilter}` : ""}`}
         />
-      }>
-        <AdminTableHead>
-          <Th>Run</Th>
-          <Th>Agent</Th>
-          <Th>Status</Th>
-          <Th>Source</Th>
-          <Th className="max-w-xs">Prompt</Th>
-          <Th align="right">Cost</Th>
-          <Th align="right">Turns</Th>
-          <Th align="right">Duration</Th>
-          <Th>Created</Th>
-        </AdminTableHead>
-        <tbody>
-          {runs.map((r) => (
-            <AdminTableRow key={r.id}>
-              <td className="p-3 font-mono text-xs">
-                <Link href={`/admin/runs/${r.id}`} className="text-primary hover:underline">
-                  {r.id.slice(0, 8)}...
-                </Link>
-              </td>
-              <td className="p-3 text-xs">{r.agent_name}</td>
-              <td className="p-3"><RunStatusBadge status={r.status} /></td>
-              <td className="p-3">
-                <RunSourceBadge triggeredBy={r.triggered_by} />
-              </td>
-              <td className="p-3 max-w-xs truncate text-muted-foreground text-xs" title={r.prompt}>
-                {r.prompt.slice(0, 80)}{r.prompt.length > 80 ? "..." : ""}
-              </td>
-              <td className="p-3 text-right font-mono">${r.cost_usd.toFixed(4)}</td>
-              <td className="p-3 text-right">{r.num_turns}</td>
-              <td className="p-3 text-right text-muted-foreground text-xs">
-                {r.duration_ms > 0 ? `${(r.duration_ms / 1000).toFixed(1)}s` : "—"}
-              </td>
-              <td className="p-3 text-muted-foreground text-xs">
-                <LocalDate value={r.created_at} />
-              </td>
-            </AdminTableRow>
-          ))}
-          {runs.length === 0 && <EmptyRow colSpan={9}>No runs found</EmptyRow>}
-        </tbody>
-      </AdminTable>
-    </div>
+      }
+    />
   );
 }

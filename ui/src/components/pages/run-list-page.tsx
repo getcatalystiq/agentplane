@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useApi } from "../../hooks/use-api";
+import { useToast } from "../../hooks/use-toast";
 import { useNavigation } from "../../hooks/use-navigation";
 import { PaginationBar } from "../ui/pagination-bar";
 import { RunStatusBadge } from "../ui/run-status-badge";
@@ -53,11 +54,19 @@ export interface RunListPageProps {
   initialData?: RunListResponse;
 }
 
+const ACTIVE_STATUSES = new Set(["running", "pending"]);
+const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled", "timed_out"]);
+
 export function RunListPage({ initialData }: RunListPageProps) {
   const { LinkComponent, basePath } = useNavigation();
+  const { toast } = useToast();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [sourceFilter, setSourceFilter] = useState<string | null>(null);
+  const prevStatusesRef = useRef<Map<string, string>>(new Map());
+  const [activeRunsExist, setActiveRunsExist] = useState(
+    () => initialData?.data?.some((r) => ACTIVE_STATUSES.has(r.status)) ?? false,
+  );
 
   const cacheKey = `runs-${page}-${pageSize}-${sourceFilter || "all"}`;
 
@@ -70,8 +79,32 @@ export function RunListPage({ initialData }: RunListPageProps) {
         ...(sourceFilter ? { triggered_by: sourceFilter } : {}),
       }) as Promise<RunListResponse>;
     },
-    initialData ? { fallbackData: initialData } : undefined,
+    {
+      ...(initialData ? { fallbackData: initialData } : {}),
+      refreshInterval: activeRunsExist ? 5000 : 0,
+    },
   );
+
+  useEffect(() => {
+    if (!data?.data) return;
+    const prev = prevStatusesRef.current;
+    const next = new Map<string, string>();
+
+    for (const run of data.data) {
+      next.set(run.id, run.status);
+      const oldStatus = prev.get(run.id);
+      if (oldStatus && ACTIVE_STATUSES.has(oldStatus) && TERMINAL_STATUSES.has(run.status)) {
+        toast({
+          title: `Run ${run.status}`,
+          description: run.agent_name,
+          variant: run.status === "completed" ? "success" : "destructive",
+        });
+      }
+    }
+
+    prevStatusesRef.current = next;
+    setActiveRunsExist(data.data.some((r) => ACTIVE_STATUSES.has(r.status)));
+  }, [data, toast]);
 
   const handleSourceChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value;

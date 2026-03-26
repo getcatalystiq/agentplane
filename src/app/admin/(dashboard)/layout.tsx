@@ -2,6 +2,7 @@ import Script from "next/script";
 import { LogoutButton } from "./logout-button";
 import { SidebarNav } from "./sidebar-nav";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { Toaster } from "@/components/ui/toaster";
 import { CompanySwitcher } from "@/components/layout/company-switcher";
 import { TopBar } from "@/components/layout/top-bar";
 
@@ -32,6 +33,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <main className="flex-1 overflow-auto p-6">{children}</main>
         </div>
       </div>
+      <Toaster />
     </>
   );
 }

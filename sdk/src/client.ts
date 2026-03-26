@@ -149,10 +149,11 @@ export class AgentPlane {
     path: string,
     options?: {
       body?: unknown;
+      query?: Record<string, string | number | undefined>;
       signal?: AbortSignal;
     },
   ): Promise<Response> {
-    const url = this._buildUrl(path);
+    const url = this._buildUrl(path, options?.query);
     const headers: Record<string, string> = {
       Authorization: this._getAuthHeader(),
       "User-Agent": `agent-plane-sdk/${VERSION}`,

@@ -1,6 +1,7 @@
 import path from "path";
 import { Sandbox, Snapshot, type Command } from "@vercel/sandbox";
 import { logger } from "./logger";
+import { getEnv } from "./env";
 import type { McpServerConfig, CallbackData } from "./mcp";
 import { resolveEffectiveRunner } from "./models";
 import { prependIdentity } from "./identity";
@@ -75,7 +76,7 @@ export async function refreshSdkSnapshot(): Promise<{ snapshotId: string; cleane
 
   const installCmd = await sandbox.runCommand({
     cmd: "npm",
-    args: ["install", "@anthropic-ai/claude-agent-sdk", "ai", "@ai-sdk/mcp", "@modelcontextprotocol/sdk", "zod"],
+    args: ["install", "@anthropic-ai/claude-agent-sdk", "ai", "@ai-sdk/mcp", "@modelcontextprotocol/sdk", "zod", "braintrust"],
   });
   if (installCmd.exitCode !== 0) {
     const stderr = await installCmd.stderr();
@@ -202,7 +203,7 @@ async function createSandboxFromSnapshot(opts: {
 async function installSdk(sandbox: Sandbox, contextId: string): Promise<void> {
   const installCmd = await sandbox.runCommand({
     cmd: "npm",
-    args: ["install", "@anthropic-ai/claude-agent-sdk", "ai", "@ai-sdk/mcp", "@modelcontextprotocol/sdk", "zod"],
+    args: ["install", "@anthropic-ai/claude-agent-sdk", "ai", "@ai-sdk/mcp", "@modelcontextprotocol/sdk", "zod", "braintrust"],
   });
   if (installCmd.exitCode !== 0) {
     const installErrors = await installCmd.stderr();
@@ -237,6 +238,7 @@ export async function createSandbox(config: SandboxConfig): Promise<SandboxInsta
       "*.firecrawl.dev",
       "*.githubusercontent.com",
       "html.duckduckgo.com",
+      "api.braintrust.dev",
       "registry.npmjs.org",
       new URL(config.platformApiUrl).hostname,
       ...mcpHostnames,
@@ -352,6 +354,10 @@ export async function createSandbox(config: SandboxConfig): Promise<SandboxInsta
     env.AI_GATEWAY_API_KEY = config.aiGatewayApiKey;
   }
   env.ENABLE_TOOL_SEARCH = "true";
+  const braintrustKey = getEnv().BRAINTRUST_API_KEY;
+  if (braintrustKey) {
+    env.BRAINTRUST_API_KEY = braintrustKey;
+  }
   if (config.runToken) {
     env.AGENT_PLANE_RUN_TOKEN = config.runToken;
   }
@@ -626,8 +632,23 @@ async function* streamLogs(command: Command): AsyncIterable<string> {
 
 function claudeSdkPreamble(): string {
   return `
-import { query } from '@anthropic-ai/claude-agent-sdk';
 import { writeFileSync, appendFileSync } from 'fs';
+
+// --- Braintrust tracing (optional, must init before SDK import) ---
+if (process.env.BRAINTRUST_API_KEY) {
+  try {
+    const bt = await import('braintrust');
+    bt.initLogger({
+      projectName: 'AgentPlane',
+      apiKey: process.env.BRAINTRUST_API_KEY,
+      asyncFlush: true,
+    });
+  } catch (e) {
+    // Braintrust not available or init failed — continue without tracing
+  }
+}
+
+const { query } = await import('@anthropic-ai/claude-agent-sdk');
 
 const mcpServers = process.env.MCP_SERVERS_JSON
   ? JSON.parse(process.env.MCP_SERVERS_JSON)
@@ -832,6 +853,7 @@ export async function createSessionSandbox(config: SessionSandboxConfig): Promis
       "*.firecrawl.dev",
       "*.githubusercontent.com",
       "html.duckduckgo.com",
+      "api.braintrust.dev",
       "registry.npmjs.org",
       new URL(config.platformApiUrl).hostname,
       ...mcpHostnames,
@@ -930,6 +952,10 @@ export async function createSessionSandbox(config: SessionSandboxConfig): Promis
     AGENT_PLANE_PLATFORM_URL: config.platformApiUrl,
     ENABLE_TOOL_SEARCH: "true",
   };
+  const braintrustKey = getEnv().BRAINTRUST_API_KEY;
+  if (braintrustKey) {
+    baseEnv.BRAINTRUST_API_KEY = braintrustKey;
+  }
   if (config.auth) {
     const { buildSandboxAuthEnv } = await import("@/lib/tenant-auth");
     Object.assign(baseEnv, buildSandboxAuthEnv(config.auth));

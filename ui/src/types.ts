@@ -67,6 +67,12 @@ export type PlaygroundStreamEvent =
   | PlaygroundSessionCreatedEvent
   | { type: string; [key: string]: unknown };
 
+/** Minimal stream event type for run streaming (compatible with SDK StreamEvent). */
+export interface StreamEventLike {
+  type: string;
+  [key: string]: unknown;
+}
+
 /** Async iterable stream of events (compatible with SDK RunStream). */
 export interface PlaygroundStream extends AsyncIterable<PlaygroundStreamEvent> {
   run_id: string | null;
@@ -105,6 +111,7 @@ export interface AgentPlaneClient {
     cancel(runId: string): Promise<unknown>;
     transcript(runId: string): Promise<unknown>;
     transcriptArray(runId: string): Promise<unknown[]>;
+    stream(runId: string, options?: { offset?: number; signal?: AbortSignal }): Promise<AsyncIterable<StreamEventLike>>;
   };
   sessions: {
     list(params?: Record<string, unknown>): Promise<unknown>;

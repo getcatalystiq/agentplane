@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -158,26 +158,62 @@ function buildConversation(events: TranscriptEvent[]): ConversationItem[] {
   return items;
 }
 
-export function TranscriptViewer({ transcript, prompt }: { transcript: TranscriptEvent[]; prompt?: string }) {
+export function TranscriptViewer({ transcript, prompt, isStreaming = false }: { transcript: TranscriptEvent[]; prompt?: string; isStreaming?: boolean }) {
   const conversation = useMemo(() => buildConversation(transcript), [transcript]);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const userHasScrolledUpRef = useRef(false);
+  const [, setUserHasScrolledUp] = useState(false);
+
+  const handleScroll = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
+    if (atBottom) {
+      userHasScrolledUpRef.current = false;
+      setUserHasScrolledUp(false);
+    } else {
+      userHasScrolledUpRef.current = true;
+      setUserHasScrolledUp(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isStreaming && !userHasScrolledUpRef.current) {
+      sentinelRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [transcript.length, isStreaming]);
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Transcript</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
-        {prompt && (
-          <div className="rounded-md border border-border bg-muted/20 px-4 py-3">
-            <div className="text-xs font-medium text-muted-foreground mb-1">Prompt</div>
-            <pre className="text-xs font-mono whitespace-pre-wrap">{prompt}</pre>
-          </div>
-        )}
-        {transcript.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No transcript available</p>
-        ) : (
-          <ConversationView items={conversation} />
-        )}
+      <CardContent className="p-0">
+        <div
+          ref={scrollContainerRef}
+          onScroll={isStreaming ? handleScroll : undefined}
+          className="space-y-3 overflow-y-auto px-6 pb-6"
+        >
+          {prompt && (
+            <div className="rounded-md border border-border bg-muted/20 px-4 py-3">
+              <div className="text-xs font-medium text-muted-foreground mb-1">Prompt</div>
+              <pre className="text-xs font-mono whitespace-pre-wrap">{prompt}</pre>
+            </div>
+          )}
+          {transcript.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No transcript available</p>
+          ) : (
+            <ConversationView items={conversation} />
+          )}
+          {isStreaming && (
+            <div className="flex items-center gap-2 px-4 py-2 text-xs text-muted-foreground">
+              <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
+              Streaming...
+            </div>
+          )}
+          <div ref={sentinelRef} />
+        </div>
       </CardContent>
     </Card>
   );
